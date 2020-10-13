@@ -1,0 +1,498 @@
+---
+title: "woRkshop 04 Exercise 02"
+subtitle: "Logistic regression"
+author: "David Lovell"
+date: "9/9/2020"
+output: html_document
+---
+
+Set `eval=TRUE` to run all chunks:
+```{r setup}
+rm(list=ls()) # Clear workspace. 
+knitr::opts_chunk$set(echo = TRUE, eval=FALSE)
+```
+
+## About this exercise
+
+**Exercise 02** gives you an opportunity to gain experience in
+
+* Data wrangling (you can skip this if you like, but I had to do it!)
+* Binary logistic regression, simple and multiple
+* Analysing the output of a fitted logist regression model
+
+```{r libraries, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(car)
+```
+
+Use this to download and read the data into `./data`
+```{r}
+heart.url <- "http://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data"
+read_csv(heart.url, col_names = FALSE) -> heart
+write_csv(heart, "data/processed.cleveland.data")
+```
+
+## Exercise 02.01: Pulling data from a URL and beating it into shape
+
+This is a good excuse to get some experience in pulling data in from a URL, specifically from the [UC Irvine Machine Learning Repository](http://archive.ics.uci.edu/ml/index.php) which makes [this heart disease data](http://archive.ics.uci.edu/ml/datasets/Heart+Disease) available.
+
+The data we are interested in is at this URL:
+`http://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data`
+
+* If this site is down you will find the file in the `./data` directory.
+* **If you are not up for data bashing, skip to Exercise 01.02**
+
+According to [the heart disease data page](http://archive.ics.uci.edu/ml/datasets/Heart+Disease) the names of the variables in that dataset are the strings in the brackets below:
+```{r}
+heart.names <- c(
+  "age", "sex", "cp", "trestbps", "chol", "fbs", "restecg", "thalach", "exang", "oldpeak", "slope", "ca", "thal", "num"
+  )
+```
+
+Also, the data dictionary lists the following:
+```
+      3 age: age in years
+      4 sex: sex (1 = male; 0 = female)
+      9 cp: chest pain type
+        -- Value 1: typical angina
+        -- Value 2: atypical angina
+        -- Value 3: non-anginal pain
+        -- Value 4: asymptomatic
+     10 trestbps: resting blood pressure (in mm Hg on admission to the 
+        hospital)
+     12 chol: serum cholestoral in mg/dl
+     16 fbs: (fasting blood sugar > 120 mg/dl)  (1 = true; 0 = false)
+     19 restecg: resting electrocardiographic results
+        -- Value 0: normal
+        -- Value 1: having ST-T wave abnormality (T wave inversions and/or ST 
+                    elevation or depression of > 0.05 mV)
+        -- Value 2: showing probable or definite left ventricular hypertrophy
+                    by Estes' criteria     
+     32 thalach: maximum heart rate achieved
+     38 exang: exercise induced angina (1 = yes; 0 = no)
+     40 oldpeak = ST depression induced by exercise relative to rest
+     41 slope: the slope of the peak exercise ST segment
+        -- Value 1: upsloping
+        -- Value 2: flat
+        -- Value 3: downsloping
+     44 ca: number of major vessels (0-3) colored by fluorosopy
+     51 thal: 3 = normal; 6 = fixed defect; 7 = reversable defect
+     58 num: diagnosis of heart disease (angiographic disease status)
+        -- Value 0: < 50% diameter narrowing (healthy)
+        -- Value 1: > 50% diameter narrowing (unhealthy)
+        (in any major vessel: attributes 59 through 68 are vessels)     
+```
+
+
+1. Use `read_csv()` to read the heart disease data from the repository into a tibble called `heart`
+    * Hint: the data set does not have column names. You will have to add these.
+    * Inspect what you have downloaded, especially the variable types. Notice anything?
+    
+
+```{r}
+heart.url <- "http://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data"
+read_csv(heart.url, col_names = FALSE) -> heart
+heart
+```
+
+I notice that
+
+* `X12` and `X13` look like they should be numeric, but they are character variables
+    * Maybe they have some sneaky characters in them? I will check after I've added names
+
+
+2. Add column names using `names(heart)`
+    
+```{r}
+names(heart) <- heart.names
+```
+
+3. Look closer at the `ca` variable using `table()`. See the problem?
+    * We can change the "?" characters to missing values with this pipeline
+      * Don't overwrite `heart` just yet, we are going to build a longer cleaning pipeline
+
+```{r}
+heart %>% 
+  mutate(
+    ca=ifelse(ca=="?", NA, ca),
+    ca=as.numeric(ca)
+  ) -> heart.clean
+```
+    
+  * Now explore `thal` and to that pipeline to fix whatever is causing it to be a `chr` variable
+
+We can see that `ca` and `thal` have missing values that should be replaced by NA
+```{r}
+table(heart$ca)
+table(heart$thal)
+```
+
+Here's a pipeline to do that:
+```{r}
+heart %>% 
+  mutate(
+    ca  =ifelse(ca  =="?", NA, ca  ),   ca=as.numeric(ca),
+    thal=ifelse(thal=="?", NA, thal), thal=as.numeric(thal),
+  ) -> heart.clean
+```
+
+
+4. According to the data dictionary, the variables `sex`, `cp`, `fbs`, `restecg`, `exang`, `slope`, `num` should all be factors
+    * Here's how we can use `factor()` to fix that for `sex`
+ 
+```{r}
+heart %>% 
+  mutate(
+    sex=factor(sex, levels=c(0,1), labels=c("female", "male"))
+  ) 
+```
+
+  * Write a pipeline to fix all the other factors
+    * Hint: I find it helps to run table as I'm working on each variable in turn,   
+    e.g., `table(heart$fbs)` just to check for surprises
+  * For `num` use  
+    `num     =factor(ifelse(num==0, "healthy", "unhealthy"))`
+  * rename `num` to `hd` (for heart disease) using `rename(hd=num)` in your pipeline
+
+
+```{r}
+heart %>% 
+  mutate(
+    sex     =factor(sex,     levels=0:1, labels=c("female", "male")),
+    cp      =factor(cp,      levels=1:4, labels=c("typical angina", "atypical angina", "non-anginal pain", "asymptomatic")),
+    fbs     =factor(fbs,     levels=0:1, labels=c("false", "true")),
+    restecg =factor(restecg, levels=0:2, labels=c("normal", "abnormal", "hypertrophy")),
+    exang   =factor(exang,   levels=0:1, labels=c("no", "yes")),
+    slope   =factor(slope,  levels=1:3, labels=c("up", "flat", "down")),
+    num     =factor(ifelse(num==0, "healthy", "unhealthy"))
+  ) %>%
+  rename(hd=num)
+
+```
+
+
+5. Combine your pipelines from 3 and 4 above and use `filter(is.na(ca) | is.na(thal))` to figure out how much missing data we have
+
+
+```{r}
+heart %>% 
+  mutate(
+    ca  =ifelse(ca  =="?", NA, ca  ),   ca=as.numeric(ca),
+    thal=ifelse(thal=="?", NA, thal), thal=as.numeric(thal),
+    sex     =factor(sex,     levels=0:1, labels=c("female", "male")),
+    cp      =factor(cp,      levels=1:4, labels=c("typical angina", "atypical angina", "non-anginal pain", "asymptomatic")),
+    fbs     =factor(fbs,     levels=0:1, labels=c("false", "true")),
+    restecg =factor(restecg, levels=0:2, labels=c("normal", "abnormal", "hypertrophy")),
+    exang   =factor(exang,   levels=0:1, labels=c("no", "yes")),
+    slope   =factor(slope,  levels=1:3, labels=c("up", "flat", "down")),
+    num     =factor(ifelse(num==0, "healthy", "unhealthy"))
+  ) %>%
+  rename(hd=num) %>%
+  filter(is.na(ca) | is.na(thal)) %>% nrow()
+
+```
+
+6 out of 303 is few enough to ignore... which is what we will do before writing this to an RDS file so we never have to do all this data bashing again!
+
+```{r}
+heart %>% 
+  mutate(
+    ca  =ifelse(ca  =="?", NA, ca  ),   ca=as.numeric(ca),
+    thal=ifelse(thal=="?", NA, thal), thal=as.numeric(thal),
+    sex     =factor(sex,     levels=0:1, labels=c("female", "male")),
+    cp      =factor(cp,      levels=1:4, labels=c("typical angina", "atypical angina", "non-anginal pain", "asymptomatic")),
+    fbs     =factor(fbs,     levels=0:1, labels=c("false", "true")),
+    restecg =factor(restecg, levels=0:2, labels=c("normal", "abnormal", "hypertrophy")),
+    exang   =factor(exang,   levels=0:1, labels=c("no", "yes")),
+    slope   =factor(slope,  levels=1:3, labels=c("up", "flat", "down")),
+    num     =factor(ifelse(num==0, "healthy", "unhealthy"))
+  ) %>%
+  rename(hd=num) %>%
+  filter(!is.na(ca), !is.na(thal)) -> heart.clean
+
+saveRDS(heart.clean, "./data/heart.clean.RDS")
+rm(heart.clean, heart.names)
+```
+
+
+## Exercise 02.02: Binary logistic regression
+
+Load a clean version of the [heart disease data](http://archive.ics.uci.edu/ml/datasets/Heart+Disease) that your Unit Coordinator has prepared for you earlier:
+```{r}
+heart <- readRDS("./data/heart.clean.RDS")
+```
+
+Our task is to build a model to predict the the outcome of `hd` as either `healthy` or `unhealthy`
+
+1. Check that all levels of catagorical predictors have both `healthy` and `unhealthy` outcomes. We cannot fit this kind of logistic regression model if there are combinations of predictor variable levels and `hd` that only have one outcome.
+
+  * Also be on the lookout for combinations that have very low counts: these can give rise to fitting problems and unstable estimates of coefficients.
+
+Here's an example of how to generate this table
+```{r}
+with(heart, table(hd, sex))
+```
+
+...and we see that the counts of the different outcomes are reasonably high for both levels of the predictor (`female` and `male`)
+
+Here is a variable where there are some  very low counts:
+```{r}
+with(heart, table(hd, restecg))
+```
+
+If we were doing a more thorough analysis, one approach would be to recode `restecg` to combine levels of this factor so that the counts of different outcomes are reasonably high for all levels of the predictor.
+
+  * Check other catogorical predictors for low or zero counts using this tabulation strategy
+  
+
+
+```{r}
+with(heart, table(hd, sex    ))
+with(heart, table(hd, cp     ))
+with(heart, table(hd, fbs    ))
+with(heart, table(hd, restecg))
+with(heart, table(hd, exang  ))
+with(heart, table(hd, slope  ))
+with(heart, table(hd, ca     ))
+with(heart, table(hd, thal   ))
+```
+
+
+2. Fit a very simple logistic regression model that uses sex to predict heart disease:
+```{r}
+heart.glm1 <- glm(hd ~ sex, data=heart, family="binomial")
+```
+
+Logistic regression is a type of generalised linear model (GLM) that uses a logistic link function (see `help("family")` for other kinds of GLM).
+
+As with linear regression (`lm()`) we can inspect the fitted model using `summary()`:
+```{r}
+summary(heart.glm1)
+```
+
+ * **Important:** Refer to Dalgaard, P. (2008). Introductory statistics with R (2nd ed). Springer. pp.231-233 (in QUT Readings) to understand what each element of the summary means. This is one of the most important parts of this exercise because it explains what `glm()` returns _and_ it gets you to look up (and I suggest _download_) this excellent reference
+ 
+Consider the tabulation of `hd` and `sex`:
+```{r}
+with(heart, table(hd, sex    ))
+```
+
+* The intercept is the log(odds) a female will be unhealthy, $\log(25/71)$ because female is reference category in `sex`
+    *  By default, **R** orders factor levels, so "female" is coded as 0, "male" as 1
+* `sexmale` is the log(odds ratio) that tells us that if a subject has `sex == male` the odds of being unhealthy are, on a log scale, $\log((112 / 89) / (25/71))=1.2737$ times greater than a subject where `sex == female`
+    * the odds ratio of heart disease (`hd == unhealthy`) for `sex == male` compared to `sex == female` is $e^{1.2737} = 3.57$ 
+
+
+3. See what this simple model predicts about heart disease (`hd == unhealthy`) on the basis of `sex` alone
+
+```{r}
+tibble(
+    prob.of.hd=heart.glm1$fitted.values,
+    sex=heart$sex
+) %>% table
+
+# Use signif() to make this a bit easier to read
+tibble(
+    prob.of.hd= signif(heart.glm1$fitted.values, 4),
+    sex=heart$sex
+) %>% table
+```
+
+With only a binary predictor, this is the most detailed prediction a model like this could give.
+
+## Exercise 02.03: Multiple logistic regression
+
+Now lets try to fit a more adventurous model using all predictors to predict `hd` status
+
+```{r}
+heart.glm2 <- glm(hd ~ ., data=heart, family="binomial")
+```
+
+Now let's see the coefficients of the fitted model:
+```{r}
+summary(heart.glm2)
+```
+
+Note that
+
+* **R** automatically codes the dummy variables (e.g., `sexmale`; `slopeflat`, `slopedown`) and labels the coefficients by combining the name of the predictor and the name of its factor levels
+* The AIC has dropped from our single predictor model
+
+Here are the confidence intervals of the coefficients
+
+```{r}
+confint(heart.glm2)
+```
+
+...as with linear regression, we are looking for coefficients whose intervals _exclude_ zero.
+
+
+Finally, let's check to see whether any of our predictors show evidence of multicollinearity:
+```{r}
+vif(heart.glm2)
+```
+
+...values below 5 are no cause for concern.
+
+##  Exercise 02.04: Assess classification performance
+
+This is more of a walk-through than an exercise, but it is important to understand the steps we need to take to assess the classification performance of logistic regression.
+
+First, we need to bring together our model's predictions with the actual outcomes.
+
+Create a tibble of predicted heart disease probability and the actual `hd` outcome...
+```{r}
+tibble(
+    prob.of.hd =heart.glm2$fitted.values, # Extracts the predicted probabilities of
+    hd         =heart$hd
+) -> heart.glm2.predictions
+```
+
+...then sort this in ascending order of predicted probability to see how well our model seperates healthy and unhealthy cases
+
+```{r}
+heart.glm2.predictions %>%
+  arrange(prob.of.hd) %>% 
+  mutate(index=row_number()) -> heart.glm2.ranked.pred
+```
+
+Ideally, our model will indicate low probability of heart disease for the cases that actually turned out healthy, and high for the unhealthy cases. This is the exciting bit where we get to see for the first time how our model's predictions fit with the actual outcomes...
+```{r}
+ggplot(data=heart.glm2.ranked.pred, aes(x=index, y=prob.of.hd)) + 
+  geom_point(aes(color=hd)) -> p
+p
+```
+
+Looking good! Now let's add some bells and whistles. Note this use of generating an initial plot, then adding to it. It's a great way to develop and explore ideas.
+```{r}
+p +
+  geom_rug(data=filter(heart.glm2.ranked.pred, hd=="healthy"), sides="b", aes(color=hd)) +
+  geom_rug(data=filter(heart.glm2.ranked.pred, hd!="healthy"), sides="t", aes(color=hd)) +
+  labs(
+    title="Cases in order of predicted probability of heart disease",
+    x="Case index in order of predicted probability",
+    y="Predicted probability of heart disease"
+    )+
+  scale_color_discrete(name="Heart disease\nstatus") +
+  # http://www.cookbook-r.com/Graphs/Legends_(ggplot2)/#changing-the-position-of-the-legend
+  theme(legend.justification=c(1,0), legend.position=c(0.95,0.05), aspect.ratio=1)
+
+```
+
+In _woRkshop 02 Exercise 02_ we explored how to present and analyse classification data. Let's reuse our `simple.roc()` function to plot the ROC curve:
+```{r}
+# Modified from https://blog.revolutionanalytics.com/2016/08/roc-curves-in-two-lines-of-code.html
+simple.roc <- function(labels, scores){
+  ordered.scores <- order(scores, decreasing=TRUE)
+  labels <- labels[ordered.scores]
+  tibble(
+    TPR=c(0,cumsum(labels))/sum(labels),
+    FPR=c(0,cumsum(!labels))/sum(!labels),
+    labels=c(NA,labels),
+    score=c(Inf, scores[ordered.scores])
+  )
+}
+```
+
+Now generate the true and false positive rates arising from our model's predictions:
+```{r}
+heart.glm2.ROC <- simple.roc(heart.glm2.predictions$hd=="healthy", heart.glm2.predictions$prob.of.hd)
+```
+
+...and plot, with a diagonal reference line indicating the expected curve for a random classification:
+```{r}
+diagonal <- data.frame(FPR=c(0,1), TPR=c(0,1))
+
+ggplot(data=heart.glm2.ROC, aes(x=FPR, y=TPR)) +
+  geom_step() +
+  coord_equal(xlim=c(0,1), ylim=c(0,1)) +
+  geom_line(data=diagonal, lty=2) +
+  labs(xlab="False Positive Rate (FPR)", ylab="True Positive Rate (TPR)")
+```
+
+Uh-oh. This kind of "upside down" ROC curve indicates that we are somehow classifying things the wrong way round: our outcomes are labeled 0-1 when they should be 1-0. I ran across this issue in developing this exercise. Can you figure our where my mistake is? 
+
+I decided to leave this mistake in because it happens from time to time so you should know what it looks like... and how to make a quick fix by simply changing the outcome that we are trying to predict. Going from `healthy` to `healthy`:
+```{r}
+heart.glm2.ROC <- simple.roc(heart.glm2.predictions$hd=="unhealthy", heart.glm2.predictions$prob.of.hd)
+```
+
+and re-plotting:
+```{r}
+diagonal <- data.frame(FPR=c(0,1), TPR=c(0,1))
+
+ggplot(data=heart.glm2.ROC, aes(x=FPR, y=TPR)) +
+  geom_step() +
+  coord_equal(xlim=c(0,1), ylim=c(0,1)) +
+  geom_line(data=diagonal, lty=2) +
+  labs(xlab="False Positive Rate (FPR)", ylab="True Positive Rate (TPR)")
+```
+
+What is the area under that curve?
+
+Recall from the Classification and Confusion lecture that the AUC...
+
+>Is the probability that a randomly chosen positive instance will have a higher score than a randomly chosen negative one.
+It is equal to the Mann-Whitney statistic divided by the product of the number of positives and negatives
+
+The [Mann-Whitney U statistic](https://en.wikipedia.org/wiki/Mann%E2%80%93Whitney_U_test) goes by a number of names, including the Mann–Whitney–Wilcoxon (MWW), Wilcoxon rank-sum test, or Wilcoxon–Mann–Whitney test. In **R**, that comes from 
+`wilcox.test()`:
+```{r}
+wilcox.test(prob.of.hd ~ hd, data=heart.glm2.predictions)
+```
+
+...whose p-value is very low, suggesting that the test statistic is far more extreme than if our predictions were random.
+
+But we still need to convert this statistic into the Mann-Whitney U:
+
+```{r}
+U <- wilcox.test(prob.of.hd ~ hd, data=heart.glm2.predictions)$statistic
+names(U) <- "Mann-Whitney U statistic"
+P <- with(heart.glm2.predictions, sum(hd=="healthy"))
+N <- with(heart.glm2.predictions, sum(hd!="healthy"))
+U/(P*N)
+```
+
+Hang on! That looks very low for such a fat ROC curve.
+
+Ah yes, I remember. We have made a mistake somewhere in our labelling, so we have to reverse our predicted probabilities from $p$ to $1-p$:
+```{r}
+U <- wilcox.test((1 - prob.of.hd) ~ hd, data=heart.glm2.predictions)$statistic
+names(U) <- "Mann-Whitney U statistic"
+P <- with(heart.glm2.predictions, sum(hd=="healthy"))
+N <- with(heart.glm2.predictions, sum(hd!="healthy"))
+U/(P*N)
+```
+
+There is certainly a lot, lot more that can be done in logistic regression, but the aim of this wo**R**kshop exercise is to show you the fundamentals to begin with. If you want to dive deeper, here are some references that will help.
+
+## References
+
+All of these references are in QUT readings and available and downloadable from the QUT library
+ 
+* Hosmer, D. W., Lemeshow, S., & Sturdivant, R. X. (2013). Applied logistic regression (Third edition). Wiley.
+* Dalgaard, P. (2008). Introductory statistics with R (2nd ed). Springer.
+* Wiley, J. F. (2015). Beginning R: An introduction to statistical programming (Second edition). Apress.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

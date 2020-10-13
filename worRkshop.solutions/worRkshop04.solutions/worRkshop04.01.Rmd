@@ -1,0 +1,393 @@
+---
+title: "woRkshop 04 Exercise 01"
+subtitle: "Measures of Association. Linear regression"
+author: "David Lovell"
+date: "9/9/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls()) # Clear workspace. 
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## About this exercise
+
+**Exercise 01** gives you an opportunity to gain experience in
+
+* Using measures of association to explore relationships between continuous variables
+* Fitting linear models
+* Using regression diagnostics
+* Using holdout data to assess model generalisation
+* Fitting multiple linear regression models
+* Identifying multicollinear predictors
+
+```{r libraries, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(GGally)
+library(car)
+```
+
+## Exercise 01.01: Exploring association
+
+1. Explore **R**'s builtin `cars` dataset (see `help("cars")`) using your powers of `ggplot`. I recommend
+    * Using `str()` to look at the dataset's structure
+    * Considering using `pivot_longer()` so you can facet the data... not essential, but cool!
+    * Exploring the univariate distributions with `geom_jitter()` and `geom_violin()`
+    * Plotting bivariate scatter
+    * Adding a scatterplot smoother using `geom_smooth()` (See the [ggplot book](https://ggplot2-book.org/programming.html#single-components))
+    * Using `cor()` to calculate correlation and comparing it to what you get doing it by hand with `var()`
+
+First, look at the structure of `cars`:
+```{r}
+str(cars)
+```
+
+...a dataframe, not a `tibble`.
+
+We can do univariate analyses with two calls to `ggplot()`, one for  like this
+```{r}
+ggplot(data=cars, aes(x=speed, y="speed")) + geom_violin() + geom_jitter() + expand_limits(x=0)
+ggplot(data=cars, aes(x=speed, y="speed")) + geom_violin() + geom_jitter() + expand_limits(x=0)
+```
+
+...but I like a more compact presentation:
+```{r}
+cars %>% 
+  as_tibble() %>%           # Helps with display on the console
+  rename('stopping distance'=dist) %>% # Helps with readability
+  pivot_longer(cols=c(speed, 'stopping distance'), names_to = "variable") -> cars.long
+
+ggplot(data=cars.long, aes(x=value, y=variable)) + geom_violin() + geom_jitter() + expand_limits(x=0) + 
+  facet_wrap(variable ~., ncol = 1, scales="free_y") + 
+  # http://www.cookbook-r.com/Graphs/Axes_(ggplot2)/#setting-and-hiding-tick-markers
+  theme(axis.ticks = element_blank(), axis.text.y = element_blank())
+```
+
+We use the original `cars` data for bivariate scatter. I like to first do this with `coord_equal()` so I have a sense of the relative scales of the data
+```{r}
+ggplot(data=cars, aes(x=speed, y=dist)) + geom_point() + expand_limits(x=0) + coord_equal()
+```
+
+...after that, I think it's OK for the analyst to proceed without scaling:
+```{r}
+p <- ggplot(data=cars, aes(x=speed, y=dist)) + geom_point()
+p
+```
+
+Now let's check out `ggplot`'s lovely smoothers
+```{r}
+p + geom_smooth()                          + ggtitle("cars with a loess smoother")
+p + geom_smooth(span = 0.3)                + ggtitle("cars with a bumpier loess smoother")
+p + geom_smooth(orientation = "y")         + ggtitle("cars with a loess smoother, x conditional upon y")
+p + geom_smooth(method = "lm")             + ggtitle("cars with a linear smoother")
+p + geom_smooth(method = "lm", se = FALSE) + ggtitle("cars with a linear smoother, without standard errors")
+p + geom_smooth(method = "lm", formula = y ~ splines::bs(x, 3)) + ggtitle("cars with a spline smoother, without standard errors")
+```
+
+Note that the shaded region plots the standard error of the conditional mean, not the standard deviation of the points around the conditional mean. Make sure you know what that means :)
+
+Last up, using `cor()` to calculate correlation then  comparing it the handmade version with `var()`
+```{r}
+with(cars, cor(speed, dist))
+with(cars, var(speed, dist)/(sqrt(  var(speed) * var(dist)  )))
+```
+
+Note the use of `with(data, expression)` which evaluates `expression` in a local environment constructed from `data`
+
+## Exercise 01.02: Fitting a linear model
+
+Here's the callto fit a linear model of stopping distance as a function of speed (as expressed in the **R** _formula_ `dist ~ speed`) in the `cars` data:
+```{r}
+cars.lm <- lm(dist ~ speed, data=cars)
+```
+
+1.    Use `str()` to figure out the structure of the result returned by `lm()`
+    * Hint `names()` can help too
+    * So can reading the **Value** section of `help("lm")`
+
+`lm()` returns an object in the form of a `list`... which includes the data we just fitted! Traps for young players: the default is to return the data you fitted the model to which can be problematic with large datasets. See `help("lm")` on how to suppress this
+```{r}
+str(cars.lm)
+names(cars.lm)
+cars.lm$model$dist
+```
+
+2.    Now print `cars.lm`. What does that tell us about the fitted model?
+    * What does `coefficients(cars.lm)` do?
+Printing `lm` objects just gives us the call and the coefficients. We need `summary()` to get more information
+```{r}
+cars.lm
+print(cars.lm) # Equivalently
+```
+
+3.    Now try `summary(cars.lm)`.  What does that tell us about the fitted model?
+      * Save this result to `cars.lm.summary` and investigate
+      * **Important:** Refer to Dalgaard, P. (2008). Introductory statistics with R (2nd ed). Springer. pp.111-113 (in QUT Readings) to understand what each element of the summary means. This is one of the most important parts of this exercise because it explains what `lm()` returns _and_ it gets you to look up (and I suggest _download_) this excellent reference
+      * Interpret the output of `summary()`
+
+
+```{r}
+summary(cars.lm) -> cars.lm.summary
+str(cars.lm.summary)
+cars.lm.summary
+```
+
+
+4.    Use `AIC()` and `BIC()` to find the Akaike information criterion and Bayesian Information Criterion values of this fitted model
+    * Note  AIC and BIC are measures of goodness of fit that takes the number of fitted parameters into account (in slightly different ways)
+    * These criteria are useful for comparing different models that have been fitted to the same dataset. The smaller their value, the better the model (in theory, and under certain assumptions... always there are assumptions)
+    
+    
+Realise that this exercise is to ensure you are aware of these functions for model comparison. With one model alone, their values are not useful to us, but if we had more models to compare _on the same data_ we would favour the one that returned the lowest criterion values. Realise also that this is a very superficial treatment of a deep topic --- model comparison --- and something that you will gain more understanding of as you study data science and statistics further.
+```{r}
+AIC(cars.lm) 
+BIC(cars.lm)
+```
+
+5.    Use `plot(cars.lm, which=1:6)` to get regression diagnostics from **R**
+    * Again, please refer to Dalgaard, P. (2008). Introductory statistics with R (2nd ed). Springer. pp.218-221 (in QUT Readings) for further explanation of these diagnostics.
+        * At this stage, our aim is mainly to ensure you are aware of these diagnostics and have a sense of what they indicate.
+        * We are not going to explore these diagnostics in detail
+        * We want you to know they exist, be able to run them, and give some high-level interpretation of them
+    * Note that these graphical diagnostics use base **R** graphics and you can page through them a screen at a time:
+```{r}
+plot(cars.lm, which=1:6)
+```
+
+  * If you want these plots to appear all on one page, you have to engage in a bit of base R graphics:
+  
+```{r}
+# par() will return the current state of R's graphics parameters, and set new ones according to its arguments
+old.graphics.parameters <- par(mfrow=c(2,2), mex=0.6, mar=c(4,4,3,2)+.3)
+# If run from the console, this will give a 2x2 array of plots. It does not work with knitted output
+plot(cars.lm, which=1:4)
+# This command restores R's graphics parameters to their previous state
+par(old.graphics.parameters)
+```
+
+  * Based on these diagnostics, and your understanding of them, which point or points would you consider worth a closer look?
+      * Note that the numerical ID of points corresponds to the row of the observation in `cars`
+      * Hint `cars %>% rownames_to_column()` will create another variable for the row ID
+
+
+Based on these diagnostics, points 23, 35, and 49 stand out. I'd like to see why. There are several ways to do this. Here, I set point color on the fly using `ifelse()` and **R**s `%in%` operator:
+
+```{r}
+cars %>% as.tbl() %>% rownames_to_column() ->  cars.id
+
+ggplot(data=cars.id, aes(x=speed, y=dist)) +
+  geom_point(aes(color=ifelse(rowname %in% c("23", "35", "49"), "extraordinary", "ordinary"))) +
+  scale_color_discrete(name="data point") + 
+  geom_smooth(method = "lm")
+```
+
+The next step would be to remove one or more of these points from the analysis and see how that affects our conclusions.
+
+## Exercise 01.03: Elementary cross-validation: Splitting data into training and test
+
+When it comes to assessing how well our model might work in making predictions about new data, $𝑅^2$ overestimates how well our model will explain new observations. Adjusted $R^2$ attempts to ameliorate this, as do AIC and BIC.
+
+One very practical alternative is to _hold out_ some data, i.e., split your data set into training and test portions (an 80/20 split is typical), fit your model on the training data, then evaluate it on the test data.
+
+Let's do that now using `sample()`
+```{r}
+# Let's make this randomness reproducible
+set.seed(123) 
+
+# Sample from the row numbers without replacement
+training.rows <- sample(1:nrow(cars), 0.8 * nrow(cars))
+
+# Split the cars data into training and test
+cars.training <- cars[ training.rows,]
+cars.test     <- cars[-training.rows,]
+```
+ 1. Now use `lm(dist ~ speed, data=cars.training)` to build a model of the training data and save it to `cars.train.lm`
+    * Look at that model summary and compare it to what you got from fitting a linear model to the entire dataset
+        * Do you think there's much difference between the two models?
+        * Note that we can't use $R^2$ or AIC or BIC to compare these models because they have been trained on different datasets
+
+```{r}
+cars.train.lm <- lm(dist ~ speed, data=cars.training)
+summary(cars.train.lm)
+summary(cars.lm)
+```
+
+My observation is that the model coefficients are't too different, and neither are their p-values.
+
+2.  Next, use your training set model to make predictions about your test data and combine those predictions into a tibble with the _actual_ values.
+    * Note that **R** uses `predict.lm()` on results from `lm()`, so consult `help("predict.lm")` for guidance
+
+```{r}
+cars.train.lm <- lm(dist ~ speed, data=cars.training)
+
+cars.test.predictions <- predict(cars.train.lm, cars.test)
+
+tibble(
+  predicted=cars.test.predictions,
+  actual   =cars.test$dist
+) -> cars.test.actual.predicted
+```
+
+  * Now plot the actual `dist` values against your model's predictions using `ggplot(data=cars.test.actual.predicted)`
+      * Hint: `coord_equal()` will put both axes on an equal scale
+      * Hint: `geom_abline(slope=1)` will plot a $45^\circ$ line
+  * What do you observe?
+  * What's the correlation of actual and predicted values
+      
+```{r}
+ggplot(data=cars.test.actual.predicted, aes(x=actual, y=predicted)) +
+  geom_point() + 
+  geom_abline(slope=1) +
+  coord_equal() +
+  labs(
+    title="Stopping distance: predicted vs. actual",
+    subtitle="Test set predictions, with an 80/20 training/test split"
+    )
+
+with(cars.test.actual.predicted, cor(actual, predicted))
+```
+
+My observation is that our training model tends to underestimate higher stopping distances, even though the correlation between actual and predicted is reasonably high.
+
+## Exercise 01.04: Multiple linear regression
+
+From one set of cars to another, this time the `mtcars` data (see `help("mtcars")`) which was
+
+>  extracted from the 1974 Motor Trend US magazine, and comprises fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973–74 models)
+
+1. Explore the `mtcars` data with a pairs plot. The `GGally` package has some very helpful functions that we can use to eyeball the data
+    * The following command will do a generalised pairs plot of _all_ variables (columns) of the `mtcars` data 
+
+```{r eval=FALSE}
+ggpairs(
+  data=mtcars, 
+  columns = 1:ncol(mtcars),
+  title = "mtcars",  
+  columnLabels = colnames(mtcars))
+```
+
+  * What do you notice about the different variables, and their relationships to each other?
+  
+I notice that
+
+* Some variables are discrete, rather than continuous. Specifically `cyl`, `vs`, `am`, `gear` and maybe `carb`
+* Some variables are strongly correlated, e.g., `mpg` and `disp`
+
+
+  * Figure out how to rewrite the call to `ggpairs()` or subset the `mtcars` data so that only the _continuous_ variables are plotted, i.e., `mpg`, `disp`, `hp`, `drat`, `wt`, and `qsec`
+
+
+```{r}
+mtcars %>% select(mpg, disp, hp, drat, wt, qsec) -> mtcars.cont
+ggpairs(
+  data=mtcars.cont, 
+  columns = 1:ncol(mtcars.cont),
+  title = "mtcars: continous variables",  
+  columnLabels = colnames(mtcars.cont))
+
+```
+
+  * The following command is another way for us to evaluate correlation betweeen variables at a glance.
+      * Let's just run it on the continous variables of `mtcars`
+      * Do you think we might encounter any issues with multicollinearity?
+
+```{r eval=FALSE}
+mtcars %>% select(mpg, disp, hp, drat, wt, qsec) -> mtcars.cont
+ggcorr(mtcars.cont, palette = "RdBu", label = TRUE)
+```
+
+2. Build a linear model that predicts `mpg` (miles per gallon)  from all the other continuous variables.
+    * Note that the formula for this is `mpg ~ .`
+    * Save it to `mtcars.cont.lm` and review the model summary.
+        * What do you notice?
+    * Use `confint(mtcars.cont.lm)` to generate the 95% confidence intervals for the parameters of your fitted model
+        * What do you notice?
+
+
+```{r}
+mtcars %>% select(mpg, disp, hp, drat, wt, qsec) -> mtcars.cont
+
+mtcars.cont.lm <- lm(mpg ~ ., data=mtcars.cont)
+summary(mtcars.cont.lm)
+```    
+
+I notice that
+
+* `wt` has a strong negative impact on `mpg`. For every unit increase in `wt` (what are the units?) `mpg` will drop by 4.4 units
+    * The standard error of the estimated regression coefficient for `wt` is small in comparison to the estimated coefficient
+        * If a coefficient is large compared to its standard error, this suggests that the coefficient is really different from 0
+
+```{r}
+confint(mtcars.cont.lm)
+```
+
+As for the confidence intervals, I note that
+* The intervals for all but `wt` include 0. This lends weight to the possibility that the coefficient for `wt` really is non-zero
+
+
+3. Use the `vif()` function from the `car` package to calculate the variance inflation factors for the predictors in our model for `mpg`
+
+```{r eval=FALSE}
+vif(mtcars.cont.lm)
+```
+
+Recall that the variance inflation factor (VIF) of the $i^\text{th}$ predictor  $X_i$ is written
+$$
+\text{VIF}_i = \frac{1}{1-R^2_i}
+$$
+where $R^2_i$ is the coefficient of determination of the linear model that uses all other predictors to predict $X_i$. The lower the value, the less collinear predictor $i$ is to the other predictors. Conventional wisdom is that variance inflation factors over 5 are starting to look problematic, and over 10 suggests the predictor is providing very little additional information to the others.
+
+* Look again at the correlations that you visualised with `ggcorr()`and compare them to the output from `vif()`
+    * If you were going to pick a variable to get rid of on account of its collinearity with other predictors, which one would you choose?
+    * Create a new dataset without that variable, fit a linear model and review the summary and vif of that reduced model
+    * What do you observe?
+
+
+`disp` has the highest variance inflation factor and is strongly correlated with `wt`. I'm going to remove it from the model and see what the refitted model looks like
+```{r}
+mtcars %>% select(mpg, hp, drat, wt, qsec) -> mtcars.cont.ndisp
+mtcars.cont.ndisp.lm <- lm(mpg ~ ., data=mtcars.cont.ndisp)
+summary(mtcars.cont.ndisp.lm)
+```
+
+I notice that
+
+* The Adjusted R-squared of the model without `disp` is higher than the model with `disp`
+    * This is a good sign: a better fit with fewer variables
+* The Standard Error of the `wt` coefficient has reduced --- also a good sign
+    * We are getting more accurate estimates of the most influential coefficient with fewer variables
+    
+```{r}
+confint(mtcars.cont.ndisp.lm)
+```
+
+* Consistent with this, the confidence interval of the `wt` coefficient has narrowed, suggesting we have a more precise sense of what that coefficient might be
+
+
+
+## Handy references
+ 
+* Dalgaard, P. (2008). Introductory statistics with R (2nd ed). Springer.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

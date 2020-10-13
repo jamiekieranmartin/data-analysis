@@ -1,0 +1,180 @@
+---
+title: "woRkshop 01 Exercise 02"
+subtitle: "Basic data import"
+author: "David Lovell"
+date: "24/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls()) # Clear workspace. 
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## About this exercise
+
+**Exercise 02** gives you an opportunity to gain experience in
+
+* Importing data from `.csv`, `.txt` and `.xlsx` files
+* Using the a range of commands to inspect the data you have imported
+* Saving and loading R objects
+
+Importing data into `R` is generally the first step in data analysis. This exercise introduces you to basic import mechanisms for commonly used storage formats
+
+You will need to have the following packages installed to run this exercise
+```{r libraries, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(readxl)
+```
+
+You may need to install `tidyverse` or `readxl`:
+
+* You can do this by clicking on the `Packages` tab in `RStudio` then hitting `Install` and typing the name of the package
+    * You can also type `install.packages("tidyverse")`, `install.packages("readxl")`
+    * **Note for virtual machine users:** If you have `R` installed on a VM, you may also need to 
+
+```
+sudo apt-get install libcurl4-openssl-dev
+sudo apt-get install libssl-dev
+sudo apt-get install libxml2-dev
+```
+
+
+### About the data used in this exercise
+
+[Glassdoor is one of the world’s largest job and recruiting sites](https://www.glassdoor.com/about-us/)
+
+* In 2017, Glassdoor's Chief Economist, Dr Andrew Chamberlain, published [How to Analyze Your Gender Pay Gap: An Employer's Guide](https://www.glassdoor.com/research/how-to-analyze-gender-pay-gap-employers-guide/)
+  * There is a copy of this report in the `./pdf` directory: it's a good example of using `R` in a professional setting... well worth a read
+* I have used the data from that report downloaded as `data.csv`
+
+### Commands you will need to use in this exercise
+
+Use the `Help` function in `RStudio` to understand more about these
+
+* `read_csv()` is the `tidyverse` command to ingest files of comma separated values (`.csv`).
+  * You must specify `file` the path to the file you are reading in
+  * This command improves on `R`'s base command `read.csv()`
+* `str()` compactly displays the structure of an arbitrary R object
+  * This function tells you the structure of what you have read in
+  * By default `R` often uses special methods to print different kinds of objects in useful ways
+  * However, these print methods can mask information about the true natuure of the objects
+* `names()`, `dimnames()`, `nrow()`, `ncol()`
+
+## Exercise 02.01: Read `data.csv`
+
+1. Use `read_csv()` to read in the file `./data/data.csv` into a dataframe called `pay.csv`
+1. View `pay.csv` by clicking on its name in the `Environment` pane
+    1. Inspect its structure by clicking on the blue arrow button icon at the left of its name
+1. Use `str()`, `names()`, `dimnames()`, `nrows()`, `ncol()` to inspect this dataframe
+
+### Solutions and commentary
+
+* Look at how this code chunks is named
+  * This allows you to [fold code and navigate to different sections and chunks](https://support.rstudio.com/hc/en-us/articles/200484568-Code-Folding-and-Sections)
+```{r read-data.csv}
+pay.csv <- read_csv("./data/data.csv")
+```
+
+Compactly display the structure of the dataframe with `str()`
+```{r inspect-pay.csv}
+str(pay.csv)
+names(pay.csv)
+# I've commented out dimnames() to save paper: it returns all 1000 rownames
+# dimnames(pay.csv)
+nrow(pay.csv)
+ncol(pay.csv)
+```
+
+## Exercise 02.02: Read `data.txt` and `data.xlsx`
+
+1. Figure out the structure of the file  `./data/data.txt` and then use a function from the `readr` package to read that file into a dataframe called `pay.txt`. Hints:
+    1. Type `help("readr")` in the `Console` to get links to more information about this package
+    1. Start typing `readr::` in the `Console` to get a list of possible functions of interest, then hit `F1` for more help
+1. Using a similar approach, figure out how to read the file `./data/data.xlsx` into a dataframe called `pay.xlsx`
+1. Compare `pay.csv`, `pay.txt` and `pay.xlsx` to see if they contain exactly the same information
+    1. `R` has two functions for comparing objects: `identical()` which is very stringent and `all.equal()` which is less
+
+
+
+### Solutions and commentary
+
+There are many ways to figure out the structure of a file. Given `./data/data.txt` is a small (probably text) file, you probably would be safe to open it in a text editor. If you have a massive file of unknown content, `od` (octal dump) is a good way to go:
+```
+$ od -a -N 128 ./data/data.txt
+0000000   j   o   b   T   i   t   l   e  ht   g   e   n   d   e   r  ht
+0000020   a   g   e  ht   p   e   r   f   E   v   a   l  ht   e   d   u
+0000040  ht   d   e   p   t  ht   s   e   n   i   o   r   i   t   y  ht
+0000060   b   a   s   e   P   a   y  ht   b   o   n   u   s  cr  nl   G
+0000100   r   a   p   h   i   c  sp   D   e   s   i   g   n   e   r  ht
+0000120   F   e   m   a   l   e  ht   1   8  ht   5  ht   C   o   l   l
+0000140   e   g   e  ht   O   p   e   r   a   t   i   o   n   s  ht   2
+0000160  ht   4   2   3   6   3  ht   9   9   3   8  cr  nl   S   o   f
+0000200
+```
+Here we can see that `./data/data.txt` contains horizontal tabs (`ht` characters) and carriage return + new lines (`cr`, `nl`) which suggest it is a tab-delimited text file from a Windows Operating System.
+
+Another approach would be to use `wc -n 100 ./data/data.txt` to sneak a peek at the first 100 characters of the file.
+
+
+```{r read-data.txt}
+pay.txt <- read_tsv("./data/data.txt")
+# or
+# pay.txt <- pay.read_delim("data/data.txt", "\t")
+```
+
+`.xlsx` is the file extension for files from the latest version of Excel
+
+```{r read-data.xlsx}
+pay.xlsx <- read_xlsx("./data/data.xlsx")
+```
+
+`identical()` tests to see whether objects are _exactly_ identical, down to the last byte. However, objects can differ slightly but still behave the same way in almost all respects: `all.equal()` is the appropriate function to explore that. 
+
+In your data science career you may encounter puzzling situations where you think you have the same data, but subtle differences can lead to different outcomes. Being aware of `identical()`  and `all.equal()` may come in handy.
+
+```{r inspect-pay.txt}
+identical(pay.csv, pay.txt)
+identical(pay.csv, pay.xlsx)
+all.equal(pay.csv, pay.txt)
+all.equal(pay.csv, pay.xlsx)
+```
+
+## Exercise 02.03: Loading and saving R objects
+
+R provides two file formats of its own for storing data, .RDS and .RData. RDS files can store a single R object, and RData files can store multiple R objects
+
+Let's start with a clean environment
+```{r}
+rm(list=ls()) # Clear workspace. 
+```
+
+1. Create a variable called `x`, then save it to a file using `saveRDS()`
+    * Hint: Checkout [Data IO in Hands On Programming with R](https://rstudio-education.github.io/hopr/dataio.html)
+2. Remove that variable from your R environment using `rm()` and confirm it is gone using `ls()`
+3. Read in the object you just saved to a file using `readRDS()` and assign it to a variable called `y`. Check that you have read the oject you saved
+    * Hint: the functions `ls()`, `dir()` and `file.remove()` could come in handy
+
+### Solutions and commentary
+
+Saving objects using `R`'s native format can be useful, especially for precious, large, or complex objects
+```{r}
+x <- "Save me, save me... save me! I'm restless and I'm far from home - Queen"
+saveRDS(x, file = "saved.RDS")  # Save x into a file called "saved.RDS"
+rm(x)                           # Remove x from R
+ls()                            # Check that it is gone
+dir()                           # Check that the file "saved.RDS" is on disk
+y <- readRDS("saved.RDS")       # Read "saved.RDS" from disk into y
+y                               # Check y's contents
+file.remove("saved.RDS")        # Remove "saved.RDS" from disk
+ls()
+dir()
+```
+
+
+
+
+
+## For further reading
+
+1. Grolemund, G., & Wickham, H. [R for Data Science](https://r4ds.had.co.nz/) Chapter 11: Data import

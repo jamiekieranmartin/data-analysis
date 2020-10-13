@@ -1,0 +1,384 @@
+---
+title: "woRkshop 03 Exercise 01"
+subtitle: "The Law of Large Numbers"
+author: "David Lovell"
+date: "9/9/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls()) # Clear workspace. 
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## About this exercise
+
+**Exercise 01** gives you an opportunity to gain experience in
+
+* Using simulation to explore the Law of Large Numbers
+* Using **R**'s  functions for generating random variates from different probability distributions (see `help("distributions")`)
+
+```{r libraries, warning=FALSE, message=FALSE}
+library(tidyverse)
+```
+
+## About random numbers in **R**
+
+**R**'s `stats` package implements functions for the following distributions
+
+| Distribution      | See help for | Type       |
+|-------------------|--------------|------------|
+| Bernoulli         | `dbinom`     | discrete   |
+| beta              | `dbeta`      | continuous |
+| binomial          | `dbinom`     | discrete   |
+| Cauchy            | `dcauchy`    | continuous |
+| chi-squared       | `dchisq`     | continuous |
+| exponential       | `dexp`       | continuous |
+| F                 | `df`         | continuous |
+| gamma             | `dgamma`     | continuous |
+| geometric         | `dgeom`      | discrete   |
+| hypergeometric    | `dhyper`     | discrete   |
+| log-normal        | `dlnorm`     | continuous |
+| multinomial       | `dmultinom`  | discrete   |
+| negative-binomial | `dnbinom`    | discrete   |
+| normal            | `dnorm`      | continuous |
+| Poisson           | `dpois`      | discrete   |
+| Student's t       | `dt`         | continuous |
+| uniform           | `dunif`      | continuous |
+| Weibull           | `dweibull`   | continuous |
+
+Each distribution (`---`) has four functions named after it:
+
+* `d---(x,...)` is for "density", the value of
+    * the probability density function (PDF) at $x$ if the distribution is continuous
+    * the value of the probability mass function (PMF) at $x$, if the distribution is discrete
+* `p---(q,...)` is for "probability",
+    * the cumulative density function (CDF) at $q$
+    * the probability of drawing a value $\leq q$ from the distribution
+* `q---(p,...)` is for "quantile"
+    * the inverse cumulative density function of $p$
+    * the $p^\text{th}$ quantile of the distribution
+    * the value that has exactly $p$ of the distribution to the left of it
+* `r---(n,...)` is for "random"
+    * returns a random sample of size $n$
+
+## Exercise 01.01: Working with random numbers
+
+1. Pick a number... any number, from the normal distribution with mean $6.3$ and variance $4$
+
+Don't forget that `rnorm()` uses standard deviation, not variance, in its arguments:
+```{r}
+rnorm(n=1, mean=6.3, sd=sqrt(4))
+```
+
+
+2. Do it again. Compare your results
+
+```{r}
+rnorm(n=1, mean=6.3, sd=sqrt(4))
+```
+In comparison to question 1, your result should be _different_.
+
+* How different though?
+    * Both should be within $2$ standard deviations either side of $6.3$, i.e., they should be in the range $(2.3,10.3)$ with $99.5\%$ probability.
+
+3. Pick 3 numbers from the exponential distribution that has mean $5$
+
+```{r}
+rexp(n=3, rate=1/5)
+```
+
+
+If we want to create a reproducible sequence of random numbers we have to set the seed of the random number generator
+
+```{r}
+set.seed(123)
+rexp(n=3, rate=1/5)
+```
+
+
+4. I'm sorry, can you pick 6 numbers from that exponential distribution, starting with the same 3 you just gave me?
+
+This is a job for `set.seed()` (see previous question)
+```{r}
+set.seed(123)
+rexp(n=6, rate=1/5)
+```
+
+5. In dice, "snake eyes" refers to all dice coming up with 1 spot. There are 5 dice in the game of Yahtzee. What's the probability of snake eyes in Yahtzee? Calculate it directly, and by using `dbinom()`
+
+```{r}
+(1/6)^5
+dbinom(5,5,1/6)
+```
+
+6. What's the probability of throwing exactly three 1s in Yahtzee?
+
+
+This is the same as asking what is the probability of exactly three successes in five trials where the probability of success in any one trial is $\frac{1}{6}
+
+```{r}
+dbinom(3, 5, 1/6)
+```
+
+7. What's the median of the standard Cauchy distribution (i.e., with location $0$ and scale $1$)?
+  * Calculate the mean of a sample of 1000 random variables from the standard Cauchy distribution
+  * Calculate the median of that sample and compare it to the mean.
+      * Repeat this process several times and discuss what you see
+  
+Recall that the median is the $0.5$ quantile of a distribution. Roughly speaking, half the distribution is on one side of the median, half is on the other:
+```{r}
+qcauchy(0.5)
+```
+
+As discussed in lectures, the Cauchy distribution has some pathologies. It's mean and variance are undefined, but the median is a good estimate of its location which, in this case is $0$. Running the following code several times should show that the sample mean jumps around all over the place. Make sure you understand how we can calculate the mean of a sample from a distribution whose mean is undefined.
+```{r}
+cauchy.1000 <-rcauchy(1000)
+data.frame(
+  mean=mean(cauchy.1000),
+  median=median(cauchy.1000),
+  difference=mean(cauchy.1000) - median(cauchy.1000)
+  )
+
+```
+
+## Exercise 01.02: The Law of Large numbers (continuous distributions)
+
+The Law of Large Numbers tells us two things (Orloff and Bloom):
+
+* the average of many independent samples is (with high probability) close to the mean of the underlying distribution
+* the density histogram of many independent samples is (with high probability) close to the graph of the density of the underlying distribution
+    * This is known as Émile Borel's Law of Large Numbers
+
+In this exercise, we are going to explore distributions using the Law of Large numbers and, to do that, we need a way to generate and display large numbers of random numbers from different distributions, along with a means to show their theoretical distibution.
+
+I'll give you the materials
+
+Here's how we can tell `ggplot` to plot a function of our own choosing using `stat_function()` from $x=[-3,3]$. I'm going to choose the probability density function of $N(0, 1)$ the Standard Normal:
+```{r}
+ggplot() +
+  stat_function(
+    data=tibble(x=c(-3,3)),
+    fun=function(x){dnorm(x, mean=0, sd=1)},
+    aes(x=x), color="red"
+    )
+```
+
+Here's how we can create a `tibble` full of random numbers:
+```{r}
+N <- 10
+tibble(
+  x=rnorm(N, mean=0, sd=1)
+) -> random.numbers
+```
+
+...and here's how we can plot a density, histogram of these numbers:
+```{r}
+ggplot() +
+  geom_histogram(
+    data=random.numbers,
+    binwidth=0.1,
+    aes(x=x, y=..density..)
+    )
+```
+
+
+1. Plot the histogram of a large number of samples from the Standard Normal distribution and overlay the theoretical distribution for comparison
+
+First we need to generate a large number of samples
+```{r}
+N <- 1e5
+tibble(
+  x=rnorm(N, mean=0, sd=1)
+) -> random.numbers
+```
+
+...then we combine our calls to `geom_histogram()` and `stat_function()`
+```{r}
+ggplot() +
+  geom_histogram(
+    data=random.numbers,
+    binwidth=0.1,
+    aes(x=x, y=..density..)
+    ) +
+  stat_function(
+    data=tibble(x=c(-3,3)),
+    fun=function(x){dnorm(x, mean=0, sd=1)},
+    aes(x=x), color="red"
+    )
+```
+
+
+2. Pick another one of **R**'s continuous distributions. Read its help file to understand a bit about how it is parameterised, then plot its density histogram and theoretical distribution like you did for the Standard Normal.
+
+  * You will probably have to experiment a bit to find our where the data "lives"
+  * I suggest just using `geom_histogram()` to work out the domain of the data
+      * Then adding the theoretical distribution as appropriate
+
+I've always wondered what a gamma(5,1) distribution looks like...
+```{r}
+N <- 1e5
+tibble(
+  x=rgamma(N, shape=5, rate=1)
+) -> random.numbers
+```
+
+Let's see where it is
+```{r}
+p <- ggplot() +
+  geom_histogram(
+    data=random.numbers,
+    binwidth=0.1,
+    aes(x=x, y=..density..)
+    )
+p
+```
+
+...and then layer its theoretical distribution on top...
+```{r}
+p +   stat_function(
+  data=tibble(x=c(0,20)),
+  fun=function(x){dgamma(x, shape=5, rate=1)},
+  aes(x=x), color="red"
+)
+```
+
+
+## Exercise 01.03: The Law of Large numbers (discrete distributions)
+
+Do you remember why histograms are inappropriate for discrete data?
+
+The correct way to show discrete probability distributions is to plot their probability mass function (PMF)
+
+Here's how we can do that to display the number of heads we get when we toss 5 fair coins, ten times.
+
+First, let's toss the coins
+```{r}
+N <- 10
+tibble(
+  x=rbinom(N, size=5, prob=0.5)
+) -> random.numbers
+```
+
+Now lets plot the proportion of each different value seen:
+```{r}
+ggplot(data=random.numbers) +
+  geom_bar(aes(x=x, y = ..prop..))
+```
+
+I prefer to plot probabilty mass functions using skinny lines, but to do that, we need to tabulate the values that appear and calculate their proportions
+```{r}
+# Make a nice pipeline function to ...
+make.pmf <- . %>%
+  table() %>%         # Tabulate the values by name
+  as_tibble() %>%     # Convert the table to a tibble so we can...
+  rename(x='.') %>%   # Rename the first column then...
+  mutate(
+    x=as.numeric(x),  # Convert the value names to numbers
+    y=n/sum(n)        # Work out their proportion of the total
+  )
+
+# Now run it
+random.numbers %>% make.pmf() -> empirical.pmf 
+```
+
+Now we can plot these proportions using skinny lines
+```{r}
+p <- ggplot(data=empirical.pmf, aes(x=x, y=y)) +
+  geom_segment(aes(xend=x), yend=0) +
+  expand_limits(y=0) +
+  ylab("probability mass")
+p
+```
+
+We can now calculate the probability mass of the theoretical distribution
+```{r}
+tibble(
+  x=0:5,
+  y=dbinom(x, size=5, prob=0.5)
+) -> theoretical.pmf
+```
+
+...and add it to our plot
+
+```{r}
+p + geom_point(data=theoretical.pmf, color="red")
+```
+
+1. Plot the histogram of a large number of samples from the distribution of number of heads in 5 coin tosses and overlay the theoretical distribution for comparison
+First make the empirical pmf
+```{r}
+N <- 1000
+tibble(
+  x=rbinom(N, size=5, prob=0.5)
+) %>% make.pmf() -> empirical.pmf
+```
+
+Next, make the theoretical pmf
+```{r}
+tibble(
+  x=0:5,
+  y=dbinom(x, size=5, prob=0.5)
+) -> theoretical.pmf
+
+```
+
+Then plot
+```{r}
+
+ggplot(data=empirical.pmf, aes(x=x, y=y)) +
+  geom_segment(aes(xend=x), yend=0) +
+  geom_point(data=theoretical.pmf, color="red") +
+  expand_limits(y=0) +
+  ylab("probability mass")
+```
+
+2. Pick another one of **R**'s discrete distributions. Read its help file to understand a bit about how it is parameterised, then plot its empirical and theoretical probability mass function like you did for the binomial.
+    * Again, you might have to plot the empirical PMF to gauge where your data are
+
+First make the empirical pmf
+```{r}
+N <- 1000
+tibble(
+  x=rhyper(N, m=10, n=20, k=12)
+) %>% make.pmf() -> empirical.pmf
+```
+
+Next, make the theoretical pmf
+```{r}
+tibble(
+  x=0:12,
+  y=dhyper(x, m=10, n=20, k=12)
+) -> theoretical.pmf
+
+```
+
+Then plot...
+```{r}
+ggplot(data=empirical.pmf, aes(x=x, y=y)) +
+  geom_segment(aes(xend=x), yend=0) +
+  geom_point(data=theoretical.pmf, color="red") +
+  expand_limits(y=0) +
+  scale_x_continuous(breaks=0:12) +
+  ylab("probability mass")
+
+```
+
+...note the use of explicit breaks on the `x` axis.
+
+There can be some really tiny probabilities in theoretical distributions. Let's put the theoretical PMF on a log scale to see that better:
+```{r}
+ggplot(data=empirical.pmf, aes(x=x, y=y)) +
+  geom_point() +
+  geom_point(data=theoretical.pmf, color="red") +
+  expand_limits(y=0) +
+  scale_x_continuous(breaks=0:12) +
+  scale_y_log10() +
+  ylab("probability mass") 
+```
+
+
+
+## Handy references
+
+1. Jeremy Orloff and Jonathan Bloom (2018) [Central Limit Theorem and the Law of Large Numbers](https://ocw.mit.edu/courses/mathematics/18-05-introduction-to-probability-and-statistics-spring-2014/readings/MIT18_05S14_Reading6b.pdf )

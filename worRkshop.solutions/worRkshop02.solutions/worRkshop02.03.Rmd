@@ -1,0 +1,302 @@
+---
+title: "woRkshop 02 Exercise 02"
+subtitle: "Assorted adventures in classification"
+author: "David Lovell"
+date: "24/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls()) # Clear workspace. 
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## About this exercise
+
+**Exercise 03** gives you an opportunity to gain experience in
+
+* Working with confusion matrices and their performance measures
+
+```{r libraries, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(readxl)
+```
+
+You may need to install `tidyverse` or `readxl`:
+
+* You can do this by clicking on the `Packages` tab in `RStudio` then hitting `Install` and typing the name of the package
+    * You can also type `install.packages("tidyverse")`, `install.packages("readxl")`
+    * **Note for virtual machine users:** If you have `R` installed on a VM, you may also need to 
+
+```
+sudo apt-get install libssl-dev
+sudo apt-get install libxml2-dev
+sudo apt-get install libcurl4-openssl-dev
+```
+
+
+
+## Exercise 03.01: Making sense of a confusion matrix
+
+### Create a dataset to make sense of
+
+```{r}
+N <- 10000
+tribble(
+  ~Mammogram, ~Cancer,    ~Probability, 
+  "positive", "positive", 0.01 * 0.8,    # True positive
+  "negative", "positive", 0.01 * 0.2,    # False negative
+  "positive", "negative", 0.99 * 0.096,  # False positive
+  "negative", "negative", 0.99 * 0.904   # True positive
+) %>%
+  mutate(
+    Count=round(N*Probability)
+  ) %>%
+  # https://stackoverflow.com/questions/38237350/repeating-rows-of-data-frame-in-dplyr
+  uncount(Count) %>%
+  mutate(
+    Random = rnorm(n())
+  ) %>%
+  arrange(Random) %>%
+  select(Mammogram, Cancer) -> mammography 
+
+write_csv(mammography, "./data/mammography.csv")
+rm(list=ls()) # Clear workspace. 
+```
+
+The `mammography.csv` file contains (fictitious) observations about people who have had a medical test (i.e., women who have had a mammogram) and two variables
+
+* `Mammogram` indicates whether the test result was "positive" (indicative of cancer) or "negative"
+* `Cancer` indicates whether or not the person went on to develop cancer
+
+1. Read in that data and inspect it
+    * Note that we rearrange the levels of the factors so "positive" comes before "negative"
+```{r}
+ read_csv("./data/mammography.csv") %>%
+  mutate(
+    Mammogram=fct_relevel(Mammogram, "positive"),
+    Cancer=fct_relevel(Cancer, "positive")
+  ) ->   mammography
+```
+
+2. Use `table()` to produce the confusion matrix for the mammogram test
+    * Hint: We did this in _woRkshop 01 Exercise 03_
+
+```{r}
+mammography %>% table()
+```
+
+3. How many true positives, false positives, false negatives and true negatives are there?
+
+```{r}
+mammography %>% table() -> confusion
+TP <- confusion["positive", "positive"] # People with positive tests who actually had the disease
+FP <- confusion["positive", "negative"] # People with positive tests who did not have the disease
+FN <- confusion["negative", "positive"] # People with negative tests who actually had the disease
+TN <- confusion["negative", "negative"] # People with negative tests who did not have the disease
+```
+
+`cat()` concatenates its arguments and prints them (possibly to a file) with less formatting than `print()`
+```{r}
+cat(sprintf("TP = %4d  FP = %4d\nFN = %4d  TN = %4d\n", TP, FP, FN, TN))
+```
+
+4. What's are the apparent true and false positive rates of this test? What's the apparent rate of incidence of breast cancer?
+   * Note that I'm using the word "apparent" here because we only have information about the performance of the test on a _sample_ of people
+      * "apparent" means "what appears to be"
+   * We are _estimating_ what these rates are
+      * We don't know for sure precisely what they are
+      * The larger the sample, the more precise our estimates
+      
+
+```{r}
+# The proportion of people who got a positive test out of all those who had the disease 
+TPR <- TP/(TP + FN)
+TPR
+
+# The proportion of people who got a positive test out of all those who did not have the disease 
+FPR <- FP/(FP + TN)
+FPR
+
+# The proportion of people who had the disease out of all people studied
+rate.of.incidence <- (TP + FN)/(TP + FP + FN + TN)
+rate.of.incidence
+```
+
+5. Your friend has had a mammogram and got a positive result. Her test predicts cancer. Based on the data you have seen,
+      * what is the probability that your friend actually does have breast cancer?
+      * How would you explain that probability to your friend?
+  * Hint: follow the two approaches set out in the Classification and Confusion lecture
+  * Hint: `addmargins()` can come in handy
+  * Hint: You've already calculated the true and false positive rates, and rate of incidence
+
+#### First approach: focus on the people who got positive test results:
+```{r}
+addmargins(confusion)
+```
+`r TP + FP` people got positive test results, out of which `r TP` actually had cancer. So, based on these numbers, it appears that your friend has a  `r round(TP/(TP + FP) * 100,1)`% chance of having breast cancer, given her positive test result.
+
+#### Second approach: decision tree approach
+
+* We start with the sample space of all mammograms. The probability of something being in our sample space is, by definition, 1.
+* Next, we split that probability into the probability that the mammogram is cancerous, which is `r rate.of.incidence * 100`% or `r rate.of.incidence`, and the probability it is not cancerous which is `r 1 - rate.of.incidence`.
+* Next, we restrict our attention to mammograms of actual cancers. The test will correctly be positive `r TPR*100`% of the time, and will be wrong `r (1-TPR)*100`% of the time.
+* Turning to the mammograms that were not cancerous, the test will give a false alarm `r signif(FPR*100,3)`% of the time, and be correctly negative `r signif((1-FPR)*100,3)`% of the time.
+* Now we can multiply the probabilities along each path to find the probabilities of true positives, false negatives, false positives and true negatives.
+* Your friend has a positive result. The probability of getting a positive result is
+    * the probability of getting a true positive: `r rate.of.incidence * TPR`
+    * plus the probability of getting a false positive: `r (1-rate.of.incidence)*FPR`
+* So, given that your friend had a positive result, the probability that is she actually has cancer is the probability of getting a true positive, divided by the probability of getting a positive result:
+
+$$
+\begin{align}
+\mathrm{P}(\text{cancer}|\text{test positive}) &=
+\frac{\mathrm{P}(\text{test positive AND cancer})}{\mathrm{P}(\text{test positive})}\\[2ex]
+&= \frac{`r rate.of.incidence * TPR`}{`r rate.of.incidence * TPR`+`r (1-rate.of.incidence)*FPR`}\\[2ex]
+&\approx `r signif((rate.of.incidence * TPR)/(rate.of.incidence * TPR + (1-rate.of.incidence)*FPR), 3)`
+\end{align}
+$$
+
+So how do you explain this to your friend?
+
+Sympathetically, I suggest. Acknowledge that is seems counterintuitive to most people that a test with a high true positive rate and a low false positive rate would yield such a low probability of correct detecting.
+
+But it all depends on the prevalence of cancer in the population we are applying the test to. This is called its base rate and being tricked by forgetting about it is called “base rate neglect.
+
+* In this example, cancer is infrequent.
+* So the detections are dominated by false alarms.
+    * and it's overwhelmingly likely that this test result is a false alarm.
+
+This problem is taken from
+
+* Eddy, D. M. (1982). Probabilistic reasoning in
+clinical medicine: Problems and opportunities. In A. Tversky, D. Kahneman, &
+P. Slovic (Eds.), Judgment under Uncertainty: Heuristics and Biases (pp.
+249–267). Cambridge University Press. https://doi.org/10.1017/CBO9780511809477.019
+* as visualised here https://www.youtube.com/watch?v=D8VZqxcu0I0 by Luana Micallef
+
+
+## Exercise 03.02: Analysing the Reciever Operating Characteristic of a scoring system
+
+
+### Create a dataset to make sense of
+
+```{r function-make.data}
+make.data <- function(N, negative.mean=0, positive.mean=1){
+tibble(
+  score=c(
+    rcauchy(N, negative.mean),
+    rcauchy(N, positive.mean)
+  ),
+  actual=
+    c(
+      rep("negative", N),
+      rep("positive", N)
+    )
+)%>%
+  mutate(
+    actual=factor(actual, levels=c("positive", "negative")
+    )
+  )
+}
+
+make.data(1000, -1, 5) %>%
+  mutate(
+    score=score^3
+    ) -> NewMam
+
+write_csv(NewMam, "./data/NewMam.csv")
+rm(make.data, NewMam) # Clear workspace. 
+```
+
+The `NewMam.csv` file contains two (fictitious) variables:
+
+* `score`: the rating given by a new system for analysing mammograms
+    * the higher the score, the more likely the person tested has breast cancer
+* `actual`: a binary variable indicating whether the person tested actually has cancer ("positive") or not
+
+
+1. Read in that data and inspect it
+    * Again, we rearrange the levels of the factors so "positive" comes before "negative"
+```{r}
+ read_csv("./data/NewMam.csv") %>%
+  mutate(
+    actual=fct_relevel(actual, "positive")
+  ) ->  NewMam
+```
+
+2. Use `ggplot` to map the `score` variable to the y-axis and the `actual` variable to the x-axis, then plot the values as jittered points. What do you observe?
+    * Hint: you might need to change the limits of your coordinate system using `coord_cartesian(ylim=c(lo,hi))` to zoom in on the range `(lo, hi)`
+
+```{r}
+ggplot(data=NewMam, aes(x=actual, y=score)) +
+  geom_jitter(width=0.1) +
+  coord_cartesian(ylim=c(-100,500))
+```
+
+
+
+
+Here is a function that takes a vector of `TRUE`/`FALSE` labels and a corresponding vector of scores, and produces the coordinates of an ROC curve.
+```{r function-simple.roc}
+# Modified from https://blog.revolutionanalytics.com/2016/08/roc-curves-in-two-lines-of-code.html
+simple.roc <- function(labels, scores){
+  ordered.scores <- order(scores, decreasing=TRUE)
+  labels <- labels[ordered.scores]
+  tibble(
+    TPR=c(0,cumsum(labels))/sum(labels),
+    FPR=c(0,cumsum(!labels))/sum(!labels),
+    labels=c(NA,labels),
+    score=c(Inf, scores[ordered.scores])
+  )
+}
+```
+
+3. Figure out how to use `simple.roc()` to generate and plot the ROC curve for the `NewMam` data
+    * Hint: you will have to use the `$` syntax to pull out the labels and scores from the `NewMam`
+data
+
+4. Figure out how to plot the ROC curve for the `NewMam` data
+    * Hint: here's a skeleton for your `ggplot` call:
+    
+```{r eval=FALSE}
+diagonal <- data.frame(FPR=c(0,1), TPR=c(0,1))
+
+ggplot(...) +
+  geom_step() +
+  coord_equal(xlim=c(0,1), ylim=c(0,1)) +
+  geom_line(data=diagonal, lty=2) + 
+  labs(xlab="False Positive Rate (FPR)", ylab="True Positive Rate (TPR)")
+```
+
+5. Use `annotate("point", x=FPR, y=TPR)` to plot the true positive rate (`TPR`) of the `mammograph.csv` data on the ROC of the `NewMam` system
+    * What does this mean?
+
+```{r}
+NewMam.ROC <- simple.roc(NewMam$actual=="positive", NewMam$score)
+
+diagonal <- data.frame(FPR=c(0,1), TPR=c(0,1))
+
+ggplot(data=NewMam.ROC, aes(x=FPR, y=TPR)) +
+  geom_step() +
+  coord_equal(xlim=c(0,1), ylim=c(0,1)) +
+  geom_line(data=diagonal, lty=2) +
+  annotate("point", x=FPR, y=TPR) +
+  labs(xlab="False Positive Rate (FPR)", ylab="True Positive Rate (TPR)")
+```
+
+This means that the `NewMam` system has acheived better performance _on the data it was tested with_ than the `mammograph` system, _on the data that it was tested with_.
+
+* This is promising but there is a big "assumptions" in there, primarily that the two systems were tested on different groups of people
+  * If these groups are similar, then the results are comparable
+  * That's a big "if"
+  * Ideally, these kinds of diagnostics would be trialled side by side on the same sample, or, at least on samples drawn from the same population
+  * In practice, there are many factors (other than diagnostic accuracy) that can influence the apparent classification performance of systems, and drawing conclusions must be done with great care
+
+
+
+
+
+## For further reading
+
+1. Eddy, D. M. (1982). Probabilistic reasoning in clinical medicine: Problems and opportunities. In A. Tversky, D. Kahneman, & P. Slovic (Eds.), Judgment under Uncertainty: Heuristics and Biases (pp. 249–267). Cambridge University Press. https://doi.org/10.1017/CBO9780511809477.019

@@ -1,0 +1,619 @@
+---
+title: "woRkshop 03 Exercise 02"
+subtitle: "Statistical testing"
+author: "David Lovell"
+date: "9/9/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls()) # Clear workspace. 
+knitr::opts_chunk$set(echo = TRUE)
+
+Run.Everything <- FALSE # Set this to TRUE to get the full print out of solutions
+```
+
+```{r}
+Run.Everything <- TRUE # Set this to TRUE to get the full print out of solutions
+```
+
+
+## About this exercise
+
+**Exercise 02** gives you an opportunity to check your understanding of sampling variation, hypothesis testing and confidence intervals and gain experience in
+
+* Sumulating samples from different populations
+* Conducting t-tests to assess differences in sample means of different populations
+* Generating and comparing p-values from t-tests on multiple samples from different populations
+
+This is a challenging exercise that assumes a level of proficiency with **R**. The aim of setting this is to help ensure that you understand what is going on rather than just following a sequence of canned instructions. If you are hitting challenges with this, remember that the `#please-explain` channel on Slack is there for you to ask for further explanation.
+
+```{r libraries, warning=FALSE, message=FALSE}
+library(tidyverse)
+```
+
+Once upon a time, conducting a statistical test meant ages of laborious and error-prone calculation, punctuated by consultation of densely printed tables of test statistic values.
+
+Now testing can be done in milliseconds at the press of a button... but the results and conclusion can be just as error prone if we do not understand the meaning of the test or how to interpret its output.
+
+In the exercise, we are going to conduct some fundamental and often used statistical tests, and the aim is to get you to think carefully about the meaning of these tests and the outputs they return, in particular
+
+* the test statistic
+* the significance level of the test
+* the P-value of the sample statstic
+* the confidence interval around the sample statistic
+
+## Exercise 02.01: Understanding the principles of statistical testing
+
+This woRkshop is a chance for you to consolidate your understanding of the Central Limit Theorem and sampling variation as a basis for hypothesis testing and confidence intervals. This will work best when you have watched the lectures on 
+
+* The Normal Distribution by way of the Central Limit Theorem
+* Sampling variation, hypothesis testing and confidence intervals
+
+Once you have done that, see if you can figure out the right answers to the following questions
+
+-----
+
+1. Choose the correct way(s) to complete the following statement: 
+
+> When you repeatedly draw different samples of size $n$ from a uniform distribution,  
+the shape of the distribution of the sums of these samples will be...
+
+  * A: more like a uniform distribution, as $n$ gets larger  
+  * B: more like a continuous distribution, as $n$ gets larger
+  * C: more like a normal distribution, as $n$ gets larger  
+  * D: more like a discrete distribution, as $n$ gets larger
+  
+The correct answer is  
+**C: more like a normal distribution, as $n$ gets larger**  
+This is the Central Limit Theorem in action. If you add up independent random variables the distribution of their sums approaches a normal distribution. The more variables you sum together, the closer their distribution will be to normal.
+
+-----
+
+2. Choose the correct answer(s) to complete the following statement:  
+
+> For samples of size $n$ from a population, the sampling distribution of a sample statistic is...
+
+  * A: the distribution of all $n$ values in the sample  
+  * B: the distribution of the values of that statistic, for all possible samples of size $n$ from the population  
+  * C: the standard normal distribution  
+  * D: the distribution of the values of that statistic, for $n$ different samples from the population
+
+The correct answer is  
+**B: the distribution of the values of that statistic, for all possible samples of size $n$ from the population**  
+The sampling distribution of a statistic: is the theoretical, expected distribution that would result from taking an infinite number of random samples of size $n$ from the population, and calculating the statistic of interest for each sample.
+
+In some situations, for some statistics, the sampling distrbution can be the standard normal distribution, but it can also be, say, the t-distribution with $n-1$ degrees of freedom, or the Chi-square distribution, or some other theoretical distribution.
+So **C** is not a correct response in all cases.
+
+-----
+
+3. Choose the correct answer(s) to complete the following statement:  
+
+> As sample size $n$ increases, the spread of the sampling distribution of the sample statistic (i.e., its standard error)
+
+  * A: decreases  
+  * B: stays the same  
+  * C: increases
+  * D: converges to a normal distribution
+
+The correct answer is  
+**A: decreases**  
+One important measure of spread of the sampling distribution of a statistic, the standard deviation,  is known its standard error. It gives a measure of how representative that sample statistic is of the population. The bigger the sample, the more representative it is and the smaller the standard error becomes.
+
+-----
+
+4. Choose the correct answer(s)
+
+  * A: If $P = 0.05$, the null hypothesis has only a 5% chance of being true.
+  * B: A nonsignificant difference (eg, $P >.005$) means there is no difference between groups.
+  * C: A statistically significant finding is clinically important.
+  * D: Studies with P-values on opposite sides of $0.05$ are conflicting.
+  * E: A P-value is the probability of the observed result, plus more extreme results, if the null hypothesis were true
+  * F: Studies with the same p value provide the same evidence against the null hypothesis.
+  * G: $P = 0.05$ means that we have observed data that would occur only 5% of the time under the null hypothesis.
+  * H: $P = 0.05$ and $P \leq 0.05$ mean the same thing.
+  * I: P-values are properly written as inequalities (e.g., "$P \leq 0.02$" when $P = .015$)
+  * J: $P = 0.05$ means that if you reject the null hypothesis, the probability of a type I error is only 5%.
+  * K: With a $P = 0.05$ threshold for significance, the chance of a type I error will be 5%.
+  * L: You should use a one-sided P-value when you don’t care about a result in one direction, or a difference in
+that direction is impossible.
+  * M: A scientific conclusion or treatment policy should be based on whether or not the P-value is significant.
+
+The correct answer is  
+**E: A P-value is the probability of the observed result, plus more extreme results, if the null hypothesis were true**  
+This single correct answer is surrounded by [A Dirty Dozen: Twelve P-Value Misconceptions](https://www.sciencedirect.com/science/article/abs/pii/S0037196308000620), Steven Goodman's summary of common misinterpretations of the P-value. There is no doubt that P-values are easy to get wrong --- experienced researchers often make mistakes about what P-values mean. Wise researchers (including data scientists) often refer to articles like 
+
+* Wasserstein, R. L., & Lazar, N. A. (2016). [The ASA’s Statement on p-Values: Context, Process, and Purpose](http://doi.org/10.1080/00031305.2016.1154108). The American Statistician, 70(2), 129–133. 
+* Greenland, S., Senn, S. J., Rothman, K. J., Carlin, J. B., Poole, C., Goodman, S. N., & Altman, D. G. (2016). [Statistical tests, P values, confidence intervals, and power: a guide to misinterpretations](http://doi.org/10.1007/s10654-016-0149-3). European Journal of Epidemiology, 31(4), 337–350. 
+* Goodman, S. (2008). [A Dirty Dozen: Twelve P-Value Misconceptions](http://doi.org/10.1053/j.seminhematol.2008.04.003). Seminars in Hematology, 45(3), 135–140. 
+
+...to avoid being misled.
+
+-----
+
+5. Choose the correct answer(s) to complete the following statement:  
+
+> Sampling variability means that
+
+  * A: the value of a sample statistic will vary from sample to sample
+  * B: the value of a population parameter will vary from sample to sample
+  * C: the value of a sample statistic will decrease as the sample size increases
+  * D: the value of a population parameter will decrease as the sample size increases
+
+The correct answer is  
+**A: the value of a sample statistic will vary from sample to sample**  
+
+-----
+
+6. Imagine three sampling distributions of the mean of a random variable for sample sizes $n=5, 10$ and $30$. Which mean is closer to the random variable's population mean?  
+
+  * A: the mean of the sampling distribution of the mean for $n=5$
+  * B: the mean of the sampling distribution of the mean for $n=10$
+  * C: the mean of the sampling distribution of the mean for $n=30$
+  * D: the means of each sampling distribution of the mean are all the same, approximating the population mean
+  * E: the means of each sampling distribution of the mean are all equal to the population mean
+
+To figure out the correct answer, we have to remember that the sampling distribution of a statistic (in this case, the mean) is the theoretical, expected distribution that would result from taking an _infinite_ number of random samples of size $n$ from the population, and calculating the statistic of interest for each sample. As such, the correct answer is  
+**E: the means of each sampling distribution of the mean are all equal to the population mean** 
+
+-----
+
+
+7. Following on from the previous question, which sampling distribution of the mean is closer to a normal distribution  
+
+  * A: the sampling distribution of the mean for $n=5$
+  * B: the sampling distribution of the mean for $n=10$
+  * C: the sampling distribution of the mean for $n=30$
+  * D: each sampling distribution is normally distributed
+  * E: it depends on the population distribution of the random variable
+  * F: it depends on the random variable's population size
+  
+The correct answer is  
+**E: it depends on the population distribution of the random variable**  
+As demonstrated in the Lecture, as $n$ increses, the sampling distribution of the mean gets closer to that of a normal distribution, but the rate at which it does tht depends on the shape of the population distribution.
+
+-----
+
+
+8. Which statement(s) are true about a 95% confidence interval around a sample mean
+
+  * A: there is a 95% chance it contains the population mean
+  * B: if we used the same sampling method to select new samples and computed a 95% confidence interval estimate for each of those samples, we would expect the population mean to fall within these interval estimates 95% of the time
+  * C: 95% of sample mean estimates from future studies will fall inside that interval
+  
+The correct answer is  
+**B: if we used the same sampling method to select new samples and computed a 95% confidence interval estimate for each of those samples, we would expect the population mean to fall within these interval estimates 95% of the time**  
+It is tempting to run with the simpler (incorrect) explanations, and many researchers (incorrectly) do. To avoid these misconceptions, please refer to Greenland, S., Senn, S. J., Rothman, K. J., Carlin, J. B., Poole, C., Goodman, S. N., & Altman, D. G. (2016). [Statistical tests, P values, confidence intervals, and power: a guide to misinterpretations](http://doi.org/10.1007/s10654-016-0149-3). European Journal of Epidemiology, 31(4), 337–350.
+
+
+
+## About statistical testing in **R**
+
+Now that you have had a warm up about the theory of sampling variation any hypothesis testing, it's time to do some tests, noting that running statistical test is the easy bit: making sure you correctly apply them and interpret their results is the tough part.
+
+**R**'s `stats` package implements many statistical tests. Some of the more commonly used ones include:
+
+
+| Name of test                | See help for   | Tests…                                          |
+|-----------------------------|----------------|-------------------------------------------------|
+| Student's t-Test            | `t.test`       | the difference in means                         |
+| Binomial test               | `prop.test`    | the difference in proportions                   |
+| Mann-Whitney U              | `wilcox.test`  | the difference in locations                     |
+| F-test                      | `var.test`     | the difference in variances                     |
+| Shapiro-Wilk test           | `shapiro.test` | the normality of a distribution                 |
+| Pearson's Chi-squared Test  | `chisq.test`   | the independence of rows and columns in a table |
+| Komogorov-Smirnov test      |	`ks.test`	     |the difference between continuous distributions  |
+
+
+## Exercise 02.02: Simulating samples
+
+One of the main reasons for using simulated samples in teaching is that _we know the truth_. Chance can never be eliminated as an explanation for something and hypothesis testing has been devised to help make decisions about the reality of effects relative to chance alone. Knowing the true underlying distribution of a simulated sample helps us understand the results of hypothesis testing, whereas working with real data means that we can never be sure what the truth is.
+
+We are going to be simulating data from two populations. Here is a function to help us do that where the arguments
+
+  * `pop1.name`, `pop2.name` are character variables that give convenient names to the two populations
+  * `n1`, `n2`, are the integer sample sizes that we want to draw from each population
+  * `pop1.samplefn`, `pop2.samplefn` are _functions_ that take an argument `n` and return `n` random samples from each population
+    * The ability to use the name of a function as an argument to another function is a powerful aspect of **R** 
+
+```{r function-simulate}
+Simulate <- function(pop1.name, n1, pop1.samplefn, pop2.name, n2, pop2.samplefn){
+  tibble(
+    population=c(rep(pop1.name, n1), rep(pop2.name, n2)),
+    values    =c( pop1.samplefn(n1),  pop2.samplefn(n2))
+  )
+}
+```
+
+### Exercise 02.02.01
+
+1. Make sure you understand how `Simulate()` works
+    * Define two functions that generate samples from normal distributions with different parameters:
+        * `Normal.A <- function(n) rnorm(n, mean=0.0, sd=1)`
+        * `Normal.B <- function(n) rnorm(n, mean=0.5, sd=1)`
+    * Call each of these functions to check they are working. Get them to generate, say, 5 samples, e.g.,
+        * `Normal.A(5)`
+    * Now call `Simulate()` to generate a tibble that has 3 samples from `Normal.A` and 4 samples from `Normal.B`
+        * Your call will have the form
+```
+Simulate("Name1", n1, Normal.A,
+         "Name2", n2, Normal.B)
+```
+        * Save this tibble and make sure that you understand it's contents
+
+First, define our sampling functions:
+```{r}
+Normal.A <- function(n) rnorm(n, mean=0.0, sd=1)
+Normal.B <- function(n) rnorm(n, mean=0.5, sd=1)
+```
+
+...then check that they work
+```{r}
+Normal.A(5)
+Normal.B(5)
+```
+
+Finally, call `Simulate()`
+```{r}
+
+Simulate("N(0.0, 1)", 3, Normal.A,
+         "N(0.5, 1)", 4, Normal.B) -> samples.from.A.B
+samples.from.A.B
+```
+
+### Exercise 02.02.02
+
+2. Make sure you have visualised the output of `Simulate()`
+    * Simulate 50 samples from each population using
+```
+Simulate("N(0.0, 1)", 50, Normal.A,
+         "N(0.5, 1)", 50, Normal.B)
+```
+    * Use `ggplot()` to visualise the distribution of the samples from each population using violin plots with jittered points overlaid
+    * Repeat this with several different simulated samples
+    
+We can simply generate new samples from `Simulate()` and plot them in one call to `ggplot()` like this:
+```{r}
+ggplot(
+  data=Simulate("N(0,1)", 50, Normal.A, "N(0.5)", 50, Normal.B),
+  aes(x=population, y=values)
+) +
+  geom_violin() +
+  geom_jitter(width=0.1)
+```
+
+
+### Exercise 02.02.03
+
+3. In this exercise, we are going to do a t-test to compare the means of two samples and ask the question: does random variation alone explain the difference between the means of these two samples.
+    * First, set the random number seed using `set.seed(220)` so that we will generate the same random sample every time
+    * Next, simulate (and save) 50 samples from `Normal.A` and 50 samples from  `Normal.B` using
+```
+Simulate("N(0.0, 1)", 50, Normal.A,
+         "N(0.5, 1)", 50, Normal.B) -> samples.from.A.B
+```
+    * Then run a t.test to assess the difference in the means of the `values` from each `population` in the data `samples.from.A.B` using the call `t.test(values ~ population, data=samples.from.A.B)`
+    * Make sure you understand what each line of the output means
+        * Hint: Bernard Lewis Welch created an alternative to Student's t-test that is ["more reliable when the two samples have unequal variances and/or unequal sample sizes"](https://en.wikipedia.org/wiki/Welch%27s_t-test)
+        * Hint: This test uses the $t$ statistic. Under the null hypothesis, the difference between the means of two samples of size $n_1$ and $n_2$ from a distribution whose values are normally distributed will have a $t$ distribution with a certain number of degrees of freedom $\nu$
+        * Hint: degrees of freedom (often abbreviated `df`) is the number of independent pieces of information that went into calculating the sample statistic (in this case, the $t$ statistic). Justin Zeltser gives a great explanation of degrees of freedom in [What are degrees of freedom?!? Seriously.](https://www.youtube.com/watch?v=N20rl2llHno)
+
+
+```{r}
+Normal.A <- function(n) rnorm(n, mean=0.0, sd=1)
+Normal.B <- function(n) rnorm(n, mean=0.5, sd=1)
+
+set.seed(220)
+Simulate("N(0.0, 1)", 50, Normal.A, "N(0.5, 1)", 50, Normal.B) -> samples.from.A.B 
+t.test(values ~ population, data=samples.from.A.B)
+```
+
+Explanation of output, line by line:  
+
+* `Welch Two Sample t-test` tells us that R is using the [Welch two sample t-test](https://en.wikipedia.org/wiki/Welch%27s_t-test) which is an improved alternative to the [Student's t-test](https://en.wikipedia.org/wiki/Student%27s_t-test). Welch's test is a better test when the sizes of the two samples we are comparing are different, though the assumption is that both samples are still drawn from a normally distributed population.
+* `data:  values by population` tells us that we are comparing values from a variable called `values` between two groups whose names are defined by the `population` variable
+* `t = -2.0893` is the value of the test statistic in this case.
+* `df = 92.973` is the number of degrees of freedom of the test statistic in this case
+* `p-value = 0.01961` is the probability of getting a t statistic whose magnitude is equal to or greater than $2.0893$. This event would often be written as $|t| \geq 2.0893$
+* R reminds us of the alternative hypothesis we are testing here, i.e., that the `true difference in means is not equal to 0`
+* `95 percent confidence interval -0.88288944 -0.07870953` tells us that if we used the same sampling method to select new samples and computed a 95% confidence interval estimate for each of those samples, we would expect the population mean to fall within these interval estimates 95% of the time
+* The mean of the group we labeled `N(0.0, 1)` is $-0.09571385$ (not far from the population mean of $0$)
+* The mean of the group we labeled `N(0.5, 1)` is $0.38508564$ (not far from the population mean of $0.5$)
+
+
+#### Visualising what's going on in our t-test
+
+Here is code to help visualise what is going on. **You are not expected to be able to write this code** but I hope you will be able to follow what it is implementing. The idea here is mainly to visualise the t-test that you have just run, but if you are interested in **R** I hope you enjoy this code.
+
+Here are some functions that will help us plot all this. `make.pdf.cdf()` generates `n` values of `pdf.function` and `cdf.function` over the range `from`--`to`:
+```{r function-make.pdf.cdf}
+make.pdf.cdf <- function(from=-3, to=3, n=500, pdf.function, cdf.function){
+  tibble(x=seq(from=from, to=to, length.out=n)) %>%
+    mutate(
+      'Probability Density Function'    =pdf.function(x),
+      'Cumulative Distribution Function'=cdf.function(x)
+    ) %>%
+    pivot_longer(cols=c('Probability Density Function', 'Cumulative Distribution Function'), names_to = 'Function', values_to = 'y')
+}
+```
+
+and `make.cdf.lines()` generates the `y` values of the specified `cdf.function` at different `x` values
+```{r}
+make.cdf.lines <- function(x, cdf.function){
+  tibble(x=x) %>%
+    mutate('Cumulative Distribution Function'=cdf.function(x)) %>%
+             pivot_longer(cols=c('Cumulative Distribution Function'), names_to = 'Function', values_to = 'y') %>%
+             mutate(label=sprintf("%0.3f", y))
+}
+```
+
+Finally we define a call to `ggplot()` that will allow us to show the probability density and cumulative distribution functions of interest
+```{r function-plot.pdf.cdf}
+plot.pdf.cdf <- function(pdf.function, cdf.function, from=-3, to=3, lower=NA, upper=NA){
+  pdf.cdf   <- make.pdf.cdf(pdf.function=pdf.function, cdf.function=cdf.function, from=from, to=to)
+  
+  p <- ggplot(data=pdf.cdf, aes(x=x, y=y, color=Function, fill=Function)) +
+    geom_line(aes(color=Function)) +
+    facet_wrap(Function~., scales="free_y", ncol = 1) +
+      guides(color=FALSE, fill=FALSE)
+  
+  if(!any(is.na(lower)) & !any(is.na(upper))){
+    
+    cdf.lines            <- make.cdf.lines(c(lower,upper), cdf.function)
+    # Code could be improved here
+    pdf.area.lower.tail  <- filter(pdf.cdf, Function=='Probability Density Function', lower[1]<x & x<upper[1])
+    pdf.area.upper.tail  <- filter(pdf.cdf, Function=='Probability Density Function', lower[2]<x & x<upper[2])
+    
+    p <- p +
+      geom_area(data=pdf.area.lower.tail, alpha=0.5) +
+      geom_area(data=pdf.area.upper.tail, alpha=0.5) +
+      geom_segment(data=cdf.lines, aes(x=x, xend=x, y=y, yend=0)) +
+      geom_point(data=cdf.lines, aes(x=x, y=y)) +
+      geom_text(data=cdf.lines, aes(x=x, y=y, label=label), color="black", hjust=1.1) 
+  }
+  p
+}
+```
+
+Now we can plot  the pdf and cdf of the t-distribution with 92.973 degrees of freedom, and shade the probability of getting a t-statistic equal to or more extreme that than $\pm 2.3737$ under the nul hypothesis:
+```{r}
+pdf.t.df.92.973 <- function(x) dt(x, df = 92.973)
+cdf.t.df.92.973 <- function(x) pt(x, df = 92.973)
+plot.pdf.cdf(
+  pdf.t.df.92.973, 
+  cdf.t.df.92.973, 
+  lower=c(-Inf,2.3737) , upper=c(-2.3737, Inf)) +
+  labs(
+    title="CDF and PDF of a t-distrubution with 92.973 degrees of freedom",
+    subtitle="Area of shaded regions show probability of a t-statistic equal to or more extreme than +/- 2.3737"
+    ) 
+```
+
+
+### Exercise 02.02.04
+
+4. In this exercise, we are going to do a t-test on two groups of values _drawn from the same population_,  focusing on the p-values and how they change each time we run the test. First, let's run our t-test again, but store the result for further inspection:
+
+```{r}
+Normal.A <- function(n) rnorm(n, mean=0.0, sd=1)
+Normal.B <- function(n) rnorm(n, mean=0.5, sd=1)
+
+set.seed(220)
+Simulate("N(0.0, 1)", 50, Normal.A, "Also N(0.0, 1)", 50, Normal.A) -> samples.from.A.A 
+t.test(values ~ population, data=samples.from.A.A) -> AA.t.test01
+```
+
+  * Now use `str(AA.t.test01)` to look at the structure of the result of the t-test
+  * Use the `$` operator to pull out the value of the t-statistic from your test like this: `AA.t.test01$statistic`
+      * Make sure you can access the other elements of the result of your t-test, i.e., degrees of freedom, p-value, confidence interval, estimates of group means, the null value being tested, the standard error of the test statistic, whether the test is one- or two-sided, the test method and the data being tested.
+  * Now use the following one liner to get the p-value of a t-test on two new samples from our populations:
+```{r eval=Run.Everything}
+t.test(values ~ population, data=Simulate("N(0.0, 1)", 50, Normal.A, "N(0.5, 1)", 50, Normal.B) )$p.value
+```
+  * Run it a few times, and see how often the p-value is greater than 0.05. Explain what this means in terms of setting a significance level of $\alpha = 0.05$  
+
+```{r}
+AA.t.test01$statistic
+AA.t.test01$parameter
+AA.t.test01$p.value
+AA.t.test01$conf.int
+AA.t.test01$estimate
+AA.t.test01$null.value
+AA.t.test01$stderr
+AA.t.test01$alternative
+AA.t.test01$method
+AA.t.test01$data.name
+```
+
+```{r}
+t.test(values ~ population, data=Simulate("N(0.0, 1)", 50, Normal.A, "Also N(0.0, 1)", 50, Normal.A) )$p.value
+```
+
+Setting a significance level means accepting that you will wrongly reject the null hypothesis with probability $\alpha$.
+If we set $\alpha = 0.05$, then we can expect to wrongly reject the null hypothesis 1 time in 20. That is, even though we are drawing our values from the same population, sampling variation means that we will get p-values _less than_ that 5% of the time.
+
+
+### Exercise 02.02.05
+
+5. This exercise automates what we have just done by hand, by repeatedly sampling from two populations, and recording the p-value of the t-test. We are going to look at two simulations side by side. The first simulation is one where there is no difference between the two populations:
+
+```{r eval=Run.Everything}
+Normal.A      <- function(n) rnorm(n, mean=0.0, sd=1)
+no.difference <- function() Simulate("A", 30, Normal.A, "A again", 40, Normal.A)
+```
+That is, the function `no.difference()` will simulate 30 samples from `Normal.A()` and 40 samples from that same distribution, but will name the two samples as "A" and "A again", respectively.
+
+The second simulation involves sampling from two different populations:
+```{r eval=Run.Everything}
+        Normal.B <- function(n) rnorm(n, mean=0.5, sd=1)
+small.difference <- function() Simulate("A", 30, Normal.A, "B", 40, Normal.B)
+```
+That is, the function `small.difference()` will simulate 30 samples from `Normal.A()` and 40 samples from `Normal.B()`, naming the two samples as "A" and "B", respectively.
+
+To make sure you understand these two simulation scenarios, use `ggplot()` to visualise them
+```{r eval=Run.Everything}
+ggplot(data=no.difference(), aes(x=values)) +
+  geom_density(aes(fill=population), alpha=0.5, adjust=1.5) +
+  geom_rug(aes(colour=population)) +
+  coord_cartesian(xlim=c(-4,4)) +
+    labs(
+    title="Density plot of two samples drawn from the populations",
+    subtitle="30 samples from Population A ~ N(0.0, 1)\n40 samples from Population A again"
+    )
+```
+
+```{r eval=Run.Everything}
+ggplot(data=small.difference(), aes(x=values)) +
+  geom_density(aes(fill=population), alpha=0.5, adjust=1.5) +
+  geom_rug(aes(colour=population))+
+  coord_cartesian(xlim=c(-4,4)) +
+  labs(
+    title="Density plot of two samples drawn from two different populations",
+    subtitle="30 samples from Population A ~ N(0.0, 1)\n40 samples from Population B ~ N(0.5, 1)"
+    )
+```
+
+(Be sure to run these a few times to remind yourself that samples and their statistics change from sample to sample.)
+
+Now let's repeat this sampling on a larger scale, and keep track of the p-values from the t-tests of the two scenarios, i.e., the one where there is `no.difference()` and the one where there is a `small.difference()` between populations. The following function simulates `N` samples from scenario A and scenario B, and stores the p-values from the t-tests of the two scenarios:
+```{r eval=Run.Everything}
+Repeat.t.test <- function(N, sim.A, Simulate.A, sim.B, Simulate.B){
+  p.value.A <- numeric(N)
+  p.value.B <- numeric(N)
+  for(i in 1:N){
+    p.value.A[i] <- t.test(values ~ population, data=Simulate.A())$p.value
+    p.value.B[i] <- t.test(values ~ population, data=Simulate.B())$p.value
+  }
+  tibble(
+    scenario=c(rep(sim.A, N), rep(sim.B, N)),
+    p.value   =c(    p.value.A,    p.value.B)
+  )
+}
+```
+
+The following call will repeatedly sample from the distributions we have set up in these two scenarios and put all the p-values into `p.values`. This will take a few seconds to run
+```{r eval=Run.Everything}
+N <- 1000
+Repeat.t.test(
+  N,
+  "No difference",       no.difference,
+  "Small difference", small.difference
+) -> p.values
+
+```
+
+Once we have generated these results, we can then compare the p-values that the t-tests yield in these two different scenarios
+```{r eval=Run.Everything}
+plot.scenarios <- function(p.values){
+  ggplot(data=p.values, aes(x=p.value)) + 
+    geom_histogram(
+      aes(fill=scenario),
+      binwidth = 0.01,  alpha=0.5, position="identity") +
+    geom_vline(xintercept = 0.05)
+}
+
+plot.scenarios(p.values) +
+    labs(
+      title=sprintf("Histograms of %d p-values from t-tests in two different scenarios", N),
+      subtitle="No difference: repeated t-tests on 40 samples from N(0.0, 1) and 30 samples from same population\nSmall difference: repeated t-tests on 40 samples from N(0.0, 1) and 30 samples from N(0.5, 1)",
+      caption="Vertical line drawn at p = 0.05"
+    )
+```
+
+Your task now is to explore this approach to repeatedly simulating from different scenarios and comparing the p-values that result
+* You could see how things change when you increase the sample sizes that are drawn by using
+```{r eval=Run.Everything}
+   no.difference.N100 <- function() Simulate("A", 100, Normal.A, "A again", 100, Normal.A)
+small.difference.N100 <- function() Simulate("A", 100, Normal.A, "B",       100, Normal.B)
+```
+
+Increasing the sample size should reduce the probability of the null hypothesis generating more extreme t-statistics when the population means are different:
+
+```{r eval=Run.Everything}
+             Normal.A <- function(n) rnorm(n, mean=0.0, sd=1)
+             Normal.B <- function(n) rnorm(n, mean=0.5, sd=1)
+   no.difference.N100 <- function() Simulate("A", 100, Normal.A, "A again", 100, Normal.A)
+small.difference.N100 <- function() Simulate("A", 100, Normal.A, "B",       100, Normal.B)
+
+N <- 1000
+Repeat.t.test(
+  N,
+  "No difference",       no.difference.N100,
+  "Small difference", small.difference.N100
+) -> p.values
+
+plot.scenarios(p.values) +
+      labs(
+      title=sprintf("Histograms of %d p-values from t-tests in two different scenarios", N),
+      subtitle="No difference: repeated t-tests on 100 samples from N(0.0, 1) and 100 samples from same population\nSmall difference: repeated t-tests on 100 samples from N(0.0, 1) and 100 samples from N(0.5, 1)",
+      caption="Vertical line drawn at p = 0.05"
+    )
+
+```
+    
+* You could see how things change when you decrease the differences between the means of the populations compared, e.g.,:
+```{r eval=Run.Everything}
+Normal.C <- function(n) rnorm(n, mean=0.2, sd=1)
+smaller.difference.N100 <- function() Simulate("A", 100, Normal.A, "C",       100, Normal.C)
+```
+
+Decreasing the differences between means of the populations should increase the probability of the null hypothesis generating more extreme t-statistics when population means are different:
+
+```{r eval=Run.Everything}
+               Normal.A <- function(n) rnorm(n, mean=0.0, sd=1)
+               Normal.C <- function(n) rnorm(n, mean=0.2, sd=1)
+     no.difference.N100 <- function() Simulate("A", 100, Normal.A, "A again", 100, Normal.A)
+smaller.difference.N100 <- function() Simulate("A", 100, Normal.A, "C",       100, Normal.C)
+
+N <- 1000
+Repeat.t.test(
+  N,
+  "No difference",       no.difference.N100,
+  "Smaller difference", smaller.difference.N100
+) -> p.values
+
+plot.scenarios(p.values) +
+      labs(
+      title=sprintf("Histograms of %d p-values from t-tests in two different scenarios", N),
+      subtitle="No difference: repeated t-tests on 100 samples from N(0.0, 1) and 100 samples from same population\nSmaller difference: repeated t-tests on 100 samples from N(0.0, 1) and 100 samples from N(0.1, 1)",
+      caption="Vertical line drawn at p = 0.05"
+    )
+```
+
+* You could see how things work when we violate the distributional assumptions of the t-test, namely, that the samples come from normally distributed populations, e.g.,
+```{r eval=Run.Everything}
+       Exponential.A <- function(n) rexp(n, rate=1.0)
+       Exponential.B <- function(n) rexp(n, rate=1.5)
+   no.difference.exp <- function() Simulate("A", 10, Exponential.A, "A again", 10, Exponential.A)
+small.difference.exp <- function() Simulate("A", 10, Exponential.A, "B",       10, Exponential.B)
+```
+
+The t-test is not designed to work on distributions that are not normal and this is going to be most problematic when our sample sizes are small --- remember that as we take the means of larger and lager samples, the sample distribution of the mean will become more and more normally distributed. In this setting, 10 samples from the highly-skewed exponential distribution strongly violates our assumptions... but play around with this. Try 100 samples and see how well things behave.
+
+```{r eval=Run.Everything}
+       Exponential.A <- function(n) rexp(n, rate=1.0)
+       Exponential.B <- function(n) rexp(n, rate=1.5)
+   no.difference.exp <- function() Simulate("A", 10, Exponential.A, "A again", 10, Exponential.A)
+small.difference.exp <- function() Simulate("A", 10, Exponential.A, "B",       10, Exponential.B)
+
+N <- 1000
+Repeat.t.test(
+  N,
+  "No difference",       no.difference.exp,
+  "Smaller difference", small.difference.exp
+) -> p.values
+
+plot.scenarios(p.values) +
+      labs(
+      title=sprintf("Histograms of %d p-values from t-tests in two different scenarios", N),
+      subtitle="No difference: repeated t-tests on 10 samples from Exp(1.0) and 10 samples from same population\nSmaller difference: repeated t-tests on 10 samples from Exp(1.0) and 100 samples from Exp(1.5)",
+      caption="Vertical line drawn at p = 0.05"
+    )
+```
+
+
+
+## Notes
+
+1. Exercises 02.02.04 and 05 were inspired by [Hypothesis testing in R by Prof. Alexandra Chouldechova](https://www.andrew.cmu.edu/user/achoulde/94842/lectures/lecture07/lecture07-94842.html)

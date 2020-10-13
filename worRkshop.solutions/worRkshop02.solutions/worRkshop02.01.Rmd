@@ -1,0 +1,385 @@
+---
+title: "woRkshop 02 Exercise 01"
+subtitle: "Visualising Distributions"
+author: "David Lovell"
+date: "24/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls()) # Clear workspace. 
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## About this exercise
+
+**Exercise 01** gives you an opportunity to gain experience in
+
+* Plotting continuous univariate distributions
+* Visually comparing continuous univariate distributions
+* Plotting discrete univariate distributions
+* Plotting bivariate continuous distributions
+* Understanding how much pie charts are loathed by most data scientists
+* Comparing continuous and empirical distributions
+
+```{r libraries, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(readxl)
+```
+
+You may need to install `tidyverse` or `readxl`:
+
+* You can do this by clicking on the `Packages` tab in `RStudio` then hitting `Install` and typing the name of the package
+    * You can also type `install.packages("tidyverse")`, `install.packages("readxl")`
+    * **Note for virtual machine users:** If you have `R` installed on a VM, you may also need to 
+
+```
+sudo apt-get install libssl-dev
+sudo apt-get install libxml2-dev
+sudo apt-get install libcurl4-openssl-dev
+```
+
+## Exercise 01.01: Plotting continuous univariate distributions
+
+Read the Glassdoor data into `pay`
+```{r read-data.csv}
+# Note that using  col_types = cols() suppresses messages from read_csv
+# https://stackoverflow.com/questions/55687401/suppress-all-messages-warnings-with-readr-read-csv-function
+pay <- read_csv("./data/data.csv", col_types = cols())
+```
+
+Recall from the Lecture and [R for Data Science, Section 3.2.3](https://r4ds.had.co.nz/data-visualisation.html) that the basic syntax of `ggplot` is
+```{r eval=FALSE}
+ggplot(data = <DATA>) + 
+  <GEOM_FUNCTION>(mapping = aes(<MAPPINGS>))
+```
+
+1. Make a `ggplot` that uses  `pay`, maps the variable `basePay` to the x-coordinate and renders the values as a histogram
+    * Hint: you will need to use `geom_histogram()`
+2. Experiment with the number of `bins` or `binwidth` to get a sense of how the number of bins can affect the histogram produced, and while you are at it, make sure that your plot includes 0 and make sure you understand the issue with including 0
+    * Hint: `help("expand_limits")`
+    * See:
+        * [To cut or not to cut (the y-axis)](https://www.data-to-viz.com/caveat/cut_y_axis.html)
+        * [Misleading axes on graphs](https://www.callingbullshit.org/tools/tools_misleading_axes.html)
+        * [It’s OK not to start your y-axis at zero](https://qz.com/418083/its-ok-not-to-start-your-y-axis-at-zero/)
+        * [Where to Start and End Your Y-Axis Scale](http://stephanieevergreen.com/y-axis/)
+3. Histograms report counts of the number of values that fall into a particular bin. Sometimes, we want to see what _proportion_ of values falls into a bin, such as when we want to overlay a histogram and a kernel density estimate.
+    * Look up the [Cookbook for R](http://www.cookbook-r.com/Graphs/Plotting_distributions_(ggplot2)/) and figure out how to produce a _density_ histogram of `basePay` overlayed with a transparent density plot
+    * It's not just histograms that can get bumpier. Add in `adjust = 0.2` to adjust the smoothness of your kernel density estimate.
+    * Provide arguments to `labs(title= , subtitle= , caption= , tag= )` so you learn how to label your ggplots
+
+### Solutions and commentary
+
+Note that you can map `basePay` to the x-coordinate in the call to `geom_histogram()` (the histogram layer)
+```{r}
+ggplot(data=pay) +
+  geom_histogram(aes(x=basePay))
+```
+
+or in the call to `ggplot()` (in which case all geoms will inherit that aesthetic unless specifically overridden)
+```{r}
+ggplot(data=pay, aes(x=basePay)) +
+  geom_histogram()
+```
+
+or anywhere in the chain of `+` operators
+```{r}
+ggplot(data=pay) + 
+  aes(x=basePay) +
+  geom_histogram()
+```
+
+(If you are interested in why `ggplot2` exists and uses the `+` operator to compose functions see [Hadley Wickham's explanation on Reddit](https://www.reddit.com/r/dataisbeautiful/comments/3mp9r7/im_hadley_wickham_chief_scientist_at_rstudio_and/cvi19ly/).)
+
+You can adjust `binwidth`
+```{r}
+ggplot(data=pay, aes(x=basePay)) +
+  geom_histogram(binwidth=2000) + expand_limits(x = 0)
+```
+
+You can adjust `bins`
+```{r}
+ggplot(data=pay, aes(x=basePay)) +
+  geom_histogram(bins=100) + expand_limits(x = 0)
+```
+
+You can even adjust `bins` _and_ `binwidth`
+```{r}
+ggplot(data=pay, aes(x=basePay)) +
+  geom_histogram(bins=100, binwidth=2000) + expand_limits(x = 0)
+```
+
+I didn't know this. I thought things were like that old joke: "You can pick your friends... you can pick your nose... but you can't pick your friend's nose"
+
+The [Cookbook for R](http://www.cookbook-r.com/Graphs/Plotting_distributions_(ggplot2)/) is an excellent resource that helps us whip up plots like this:
+
+```{r}
+bandwidth.adjust <- 0.2
+ggplot(data=pay, aes(x=basePay)) +
+  # Histogram with density instead of count on y-axis
+  geom_histogram(
+    aes(y=..density..),
+    binwidth=2000, colour="black", fill="white"
+    ) +
+  geom_density(alpha=.2, fill="#FF6666", adjust = bandwidth.adjust) + 
+  expand_limits(x = 0) +
+  labs(title="Distribution of basePay",
+       subtitle="As a density histogram and kernel density estimate" ,
+       caption=sprintf("Bandwidth adjustment = %0.1f", bandwidth.adjust),
+       tag="Fig. 1")
+
+```
+
+Note the use of `sprintf()` (**f**ormatted **print**ing to a **s**tring) to print the value of a variable in your title.
+
+
+## Exercise 01.02: Comparing continuous univariate distributions
+
+1. Starting with `ggplot(data=pay, aes(x=basePay))` add a density plot to visualise the distribution of `basePay`
+    * Now map `gender` to the aesthetic of `color` to compare the density
+    * Use `geom_rug()` to give a sense of the amount of data underpinning these plots
+    * Move the legend to the top right hand corner of the plot with advice from the [Cookbook for R](http://www.cookbook-r.com/Graphs/Legends_(ggplot2)/#changing-the-position-of-the-legend)
+2. Now try mapping the `gender` to the y-coordinate aesthetic and render the data using points
+    * What's the problem with this visualisation?
+    * In your own time, try out the strategies used in the Lecture to address this problem
+3. Now using `ggplot(data=pay, aes(x=basePay, y=gender, color=gender))` render the values using boxplots
+    * Now use `facet_grid(dept ~ .)` to break the data into small multiples where each row plots the data from a particular department
+    * Now facet the data further, breaking up each column by education level
+        * What does this enable you to explore?
+
+### Solutions and commentary
+
+First we draw a density plot of `basePay`. I suggest mapping `basePay` to the x-axis in the call to ggplot so that all subsequent geoms inherit that mapping
+
+```{r}
+ggplot(data=pay, aes(x=basePay)) +
+  geom_density()
+```
+
+Next map `gender` to the color aesthetic, again in the call to `ggplot`, throw in a rug for good measure and set the theme to shift the non-data ink of the legend.
+
+```{r}
+ggplot(data=pay, aes(x=basePay, color=gender)) +
+  geom_density() +
+  geom_rug() +
+  theme(legend.justification=c(1,1), legend.position=c(1,1))
+```
+
+We can do that with points
+```{r}
+ggplot(data=pay, aes(x=basePay, y=gender)) +
+  geom_point()
+```
+
+But the problem here is _overplotting_ and, as we showed in the lecture, we can address that using jittering
+```{r}
+ggplot(data=pay, aes(x=basePay, y=gender)) +
+  geom_jitter(height = 0.1)
+```
+
+...transparency
+```{r}
+ggplot(data=pay, aes(x=basePay, y=gender)) +
+  geom_jitter(height = 0.05, alpha=0.2)
+```
+
+...boxplots
+```{r}
+ggplot(data=pay, aes(x=basePay, y=gender)) +
+  geom_boxplot()
+```
+
+...violin plots
+```{r}
+ggplot(data=pay, aes(x=basePay, y=gender)) +
+  geom_violin()
+```
+
+...the whole shebang!
+```{r}
+ggplot(data=pay, aes(x=basePay, y=gender)) +
+  geom_violin() +
+  geom_boxplot() +
+  geom_jitter(height = 0.05, alpha=0.2)
+```
+
+If we want to introduce other categorical variables, we can use faceting for one...
+```{r}
+ggplot(data=pay, aes(x=basePay, y=gender, color=gender)) +
+  geom_boxplot() +
+  facet_grid(dept ~ .)
+```
+
+...or two variables.
+```{r}
+ggplot(data=pay, aes(x=basePay, y=gender, color=gender)) +
+  geom_boxplot() +
+  facet_grid(dept ~ edu)
+```
+
+Can you see any combinations of Department and Education level that buck the `basePay`-`gender` trend?
+
+
+## Exercise 01.03: Plotting discrete univariate distributions
+
+This exercise shows how to plot the distribution of discrete variables using a barplot, organise the bars in a useful way that is easy on the eye, then pick out a variable of interest. The motivating problem is to figure out how many Data Scientists are in the organisation in comparison to other jobs
+
+1. Starting with `ggplot(data=pay, aes(x=jobTitle))` add a barplot
+2. Use `coord_flip()` to flip the axes for easier reading
+    * What order are the bars in?
+3. Look at the [`forcats` package](https://forcats.tidyverse.org/articles/forcats.html) introduction and figure out how to order the bars by their frequency
+4. Set the fill color aesthetic of the bars to pick out your tribe
+    * Hint `ifelse(jobTitle=="Data Scientist", "My tribe", "Others")` creates a variable that is equal to "My tribe" if `jobTitle=="Data Scientist"` else it is "Others"
+5. Tidy up the presentation by
+    * Using `xlab()` or `labs()` to set the x-axis label (remember the coordinates are flipped)
+    * Modifying the name of the discrete _color_ scale to something more meaningful
+
+### Solutions and commentary
+
+The key elements are
+
+3. Changing `aes(x=jobTitle)` to `aes(x=fct_infreq(jobTitle))` to reorder the factor levels of `jobTitle`
+4. Picking out a bar of interest by setting the fill aesthetic `aes(fill=ifelse(jobTitle=="Data Scientist", "My tribe", "Others"))`
+5. Fixing up the labels and legends with `xlab("Job Title")` and `scale_fill_discrete(name="Tribe")` 
+
+```{r}
+ggplot(data=pay, aes(x=fct_infreq(jobTitle))) +
+  geom_bar(aes(fill=ifelse(jobTitle=="Data Scientist", "My tribe", "Others"))) +
+  xlab("Job Title") +
+  scale_fill_discrete(name="Tribe") +
+  coord_flip()
+```
+
+
+## Exercise 01.04: Plotting discrete univariate distributions with pie charts
+
+1. Read the help file on `geom_pie()`
+    * Hint: there is no `geom_pie()` in `ggplot`
+    * Read Stephen Few's [Save the Pies for Desert](https://www.perceptualedge.com/articles/visual_business_intelligence/save_the_pies_for_dessert.pdf) to understand why
+
+## Exercise 01.05: Plotting continuous bivariate distributions
+
+The motivation for this exploration is the question: is there any structure to the relationship between base pay and bonus pay?
+
+1. Using the `pay` data, map `basePay` to the x-axis, `bonus` to the y-axis, and plot the pairs of values as points
+    * What do you observe?
+2. Put the x and y axis on equal scales with `coord_equal()` and use `expand_limits()` to include zeros
+    * What do you observe?
+3. Use the `facet_grid(dept ~ edu)` to see if subsets of the data show appreciable structure
+    * Suggestion: try this without `coord_equal()`
+    * Suggestion: try `geom_density2d()`
+
+### Solutions and commentary
+
+Over the entire datasets `basePay` and `bonus` aren't showing any discernable relationships
+```{r}
+ggplot(data=pay, aes(x=basePay, y=bonus)) + 
+  geom_point()
+```
+
+...but beware... that previous graph gives the impression that `basePay` and `bonus` are similarly spread. We need to put the two dollar amounts on the same coordinate scales to appreciate that their have different levels of variation
+```{r}
+ggplot(data=pay, aes(x=basePay, y=bonus)) + 
+  geom_point() +
+  expand_limits(x=0, y=0) +
+  coord_equal()
+```
+
+Let's break things up by department and educational level
+```{r}
+ggplot(data=pay, aes(x=basePay, y=bonus)) + 
+  geom_point() +
+  facet_grid(dept ~ edu)
+```
+
+...and add a density estimate
+```{r}
+ggplot(data=pay, aes(x=basePay, y=bonus)) + 
+  geom_point() +
+  geom_density2d() +
+  facet_grid(dept ~ edu)
+```
+
+...hmmm. Still no discernable structure. Makes me curious to look elsewhere... like `age`... maybe later.
+
+
+## Exercise 01.06: Comparing continuous and empirical distributions
+
+After that last exercise, and knowing that this is a simulated dataset, I'm wondering if we can "reverse engineer" how the data was made up. Let's use a QQ-plot to compare the distribution of `basePay` and `bonus` to that of the Standard Normal
+
+1. use a QQ-plot to compare the distribution of `basePay` to that of the Standard Normal
+    * Hint: use `geom_qq()` and `geom_qq_line()`
+    * Hint: these geoms require the variable of interest to be mapped to the `sample` aesthetic
+    * What do you observe?
+    
+2. Here's a present for you: a bit of code that
+    * Creates a function that can return the density of a Normal distribution (`dnorm()`) with the same mean and standard deviation as `basePay`
+    * Plots that on top of a kernel density estimate of  `basePay`
+    * Run it!
+
+```{r eval=FALSE}
+normal <- function(x){dnorm(x, mean=mean(pay$basePay), sd=sd(pay$basePay))}
+ggplot(data=pay, aes(x=basePay)) + 
+  geom_density() +
+  stat_function(fun=normal, aes(color="Normal"), n=201) +
+  geom_rug()
+```
+
+3. Your challenge: conduct steps 1 and 2 with `bonus`
+    * For bonus points and a pick of the box: is `bonus` _mesokurtic_ (Normal), _leptokurtic_ (fat-tailed) or _platykurtic_ (thin-tailed)?
+    * Fact: this is the first time I have ever used these words in my professional career
+
+### Solutions and commentary
+
+Over the entire dataset, the quantiles of `basePay` show a pretty linear relationship with the quantiles of the Standard Normal:
+```{r}
+ggplot(data=pay, aes(sample=basePay)) + 
+  geom_qq(alpha=0.1) +
+  geom_qq_line()
+```
+
+...and when we plot a Normal distribution with the same mean and standard deviation as `basePay` over the empirical kernel density estimate, they fit alright
+```{r}
+normal <- function(x){dnorm(x, mean=mean(pay$basePay), sd=sd(pay$basePay))}
+ggplot(data=pay, aes(x=basePay)) + 
+  geom_density() +
+  stat_function(fun=normal, aes(color="Normal"), n=201) +
+  geom_rug()
+```
+
+...but remember from Exercise 01.02 that
+```{r}
+ggplot(data=pay, aes(x=basePay, color=gender)) +
+  geom_density() +
+  geom_rug() +
+  theme(legend.justification=c(1,1), legend.position=c(1,1))
+```
+
+...so `basePay` could be a mix of two quite similar normally distibuted variables.
+
+`bonus` is a different story though...
+```{r}
+ggplot(data=pay, aes(sample=bonus)) + 
+  geom_qq(alpha=0.1) +
+  geom_qq_line()
+```
+
+...exhibiting a thin-tailed ( _platykurtic_ ) distribution
+```{r}
+normal <- function(x){dnorm(x, mean=mean(pay$bonus), sd=sd(pay$bonus))}
+ggplot(data=pay, aes(x=bonus)) + 
+  geom_density() +
+  stat_function(fun=normal, aes(color="Normal"), n=201) +
+  geom_rug()
+```
+
+(I think I would call the distribution of `bonus` "lumpokurtic".)
+
+
+
+
+
+## For further reading
+
+1. Grolemund, G., & Wickham, H. [R for Data Science](https://r4ds.had.co.nz/) 
+1. Wickham, H. [ggplot2: Elegant Graphics for Data Analysis](https://ggplot2-book.org/)

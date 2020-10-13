@@ -1,0 +1,122 @@
+---
+title: "woRkshop 01 Exercise 01"
+subtitle: "Basic R Markdown"
+author: "David Lovell"
+date: "24/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# This logical variable indicates whether to include various solutions
+# If you change it to True, and you don't have access to 
+include.solutions <- FALSE
+```
+
+**Exercise 01** gives you an opportunity to gain experience in
+
+* Using `R` via the `Rstudio` interface
+* Using `RMarkdown`, [an authoring framework for data science](https://rmarkdown.rstudio.com/lesson-1.html), to combine commentary and analysis in a style known as [literate programming](https://datacarpentry.org/rr-literate-programming/02-literate-programming/index.html)
+* Using `Knit` to compile your commentary and execute your analysis into an HTML file
+* Viewing that HTML file in your browser
+
+## Prelude to Exercise 01
+
+Before making any changes to this file, check to see that you can knit this `Rmarkdown` file
+
+* Type `Ctrl+Shift+K`  
+OR  
+click on the `Knit` button at the top of the code editing screen  
+OR  
+select the `Knit to HTML` option in the dropdown menu next to the `Knit` button at the top of the code editing screen
+
+You _should_ be rewarded by activity in the `RMarkdown` panel of `RStudio`
+
+You _may_ experience some kind of problem
+
+* Don't panic. These things often happen because our computing environments are set up differently.
+  * This can especially be the case if you have had `R` and `RStudio` installed for a while so `R` and its many packages are at different versions
+  * You might see messages like  
+  `Error: package 'markdown' was installed before R 4.0.0: please re-install it`
+  * The solution is to go to the `Packages` tab (in one of the four  `RStudio` "panes"), click `Install` then type the name of the package that needs reinstallation
+  * If you have a different issue, please consult your tutor and be happy that you are doing this in a Workshop and not 48 hours before your assignment is due
+
+# Exercise 01  
+
+This exercise involves using `RMarkdown`. To find out more about this way of combining `R` code and commentary please
+
+* Open up the Markdown Quick Reference in `Rstudio` (under the `Help` menu)
+* Take a look at the RMarkdown Cheat Sheet (under the `Help > Cheatsheets` menu)
+
+Your exercise is to reproduce the output that appears between the two horizontal lines below as displayed in the file `./pdf/woRkshop 01 Exercise 01.pdf`.
+
+* OK, you don't have to reproduce it exactly, but you do have to know how to achieve the various kinds of formatting demonstrated.
+
+------------------
+
+# Key elements of `RMarkdown`
+
+## Text elements
+
+`RMarkdown` lets us use plain text to indicate where to put things in **bold** or *italics* or in a `code font`.
+
+## List elements
+
+### Bulleted lists
+
+* Item 1
+* Item 2
+    + Item 2a
+    + Item 2b
+    
+### Numbered lists
+
+1. Item 1
+2. Item 2
+3. Item 3
+    + Item 3a
+    + Item 3b
+    
+## Line Breaks and Blockquotes
+
+Line breaks  
+are not so obvious.
+
+> You can quote me on that
+
+## Hyperlinks
+
+The following logo comes from [https://i0.wp.com/static1.squarespace.com/static/51156277e4b0b8b2ffe11c00/t/583ccafcbebafbc5c11fa6ec/1480379239088/RStudio-Ball.png](https://i0.wp.com/static1.squarespace.com/static/51156277e4b0b8b2ffe11c00/t/583ccafcbebafbc5c11fa6ec/1480379239088/RStudio-Ball.png)
+
+![](https://i0.wp.com/static1.squarespace.com/static/51156277e4b0b8b2ffe11c00/t/583ccafcbebafbc5c11fa6ec/1480379239088/RStudio-Ball.png)
+
+## `R` Code
+
+There are two main ways to include `R` Code so that it is executed. First, as a chunk of code. An empty block can be inserted by typing `Ctrl+Alt+I` or clicking on the `Insert` button at the top right of this editing pane
+
+
+```{r}
+x <- 1:10
+y <- 2^x
+y
+```
+
+The second way to insert `R` code is inline, e.g., the value of `x` is `r x`
+
+## Mathematics
+
+`RMarkdown` supports mathematics using $\LaTeX$ typesetting conventions (written as `$\LaTeX$`). 
+
+You can produce beautiful equations like $e^{i \pi} + 1 = 0$ inline, or as a display equation:
+$$
+e^{i \pi} + 1 = 0
+$$
+
+-----------------
+
+Don't worry if you didn't make it through all that... the main thing is to have got a sense of what you can do with `RMarkdown` and understand the concept of [literate programming](https://datacarpentry.org/rr-literate-programming/02-literate-programming/index.html)
+
+## For further reading
+
+1. Grolemund, G., & Wickham, H. [R for Data Science](https://r4ds.had.co.nz/) Chapter 27: RMarkdown

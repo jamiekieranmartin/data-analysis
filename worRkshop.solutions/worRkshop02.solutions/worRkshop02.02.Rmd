@@ -1,0 +1,264 @@
+---
+title: "woRkshop 02 Exercise 02"
+subtitle: "Assorted adventures in probability and statistics"
+author: "David Lovell"
+date: "24/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls()) # Clear workspace. 
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## About this exercise
+
+**Exercise 02** gives you an opportunity to gain experience in
+
+* Figuring out the mean and variance of a discrete distribution
+* Simulating random data from a discrete distribution
+* Using the tidyverse to work with data
+
+```{r libraries, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(readxl)
+```
+
+You may need to install `tidyverse` or `readxl`:
+
+* You can do this by clicking on the `Packages` tab in `RStudio` then hitting `Install` and typing the name of the package
+    * You can also type `install.packages("tidyverse")`, `install.packages("readxl")`
+    * **Note for virtual machine users:** If you have `R` installed on a VM, you may also need to 
+
+```
+sudo apt-get install libssl-dev
+sudo apt-get install libxml2-dev
+sudo apt-get install libcurl4-openssl-dev
+```
+
+## Exercise 02.01: Expectation
+
+I have another game I'd like to interest you in playing.
+
+* Each side of this die is worth 2 to the power of the number of spots
+    * The 1 spot is worth $2^1 = \$2$
+    * The 2 spot is worth $2^2 = \$4$
+    * The 3 spot is worth $2^3 = \$8$
+    * ...
+    * The 6 spot is worth $2^6 = \$64$
+* Every time you roll a number less than 6 I give the money to you.
+  * If you roll a three, say, I give you $\$8$.
+* Every time you roll a six though, you give the money to me.
+
+* Do you want to play?
+    * How much do you expect to make each time you roll the die?
+
+Remember that if we have a random variable $X$ with $k$ different outcomes $x_1, x_2, \dots,x_k$ whose probabilities were $p_1, p_2, \dots,p_k$, it expectation is defined as
+
+$$
+\begin{align}
+\mathrm{E}(X) &= \sum_{i=1}^k x_i p_i \\
+&= x_1 p_1 + x_2 p_2 + \cdots + x_k p_k
+\end{align}
+$$
+
+
+### Solutions and commentary
+
+You can work it out
+$$
+\begin{align}
+\mathrm{E}(X) &= \sum_{i=1}^k x_i p_i \\
+&= 2\cdot\frac{1}{6} + 4\cdot\frac{1}{6} + 8\cdot\frac{1}{6} +16 \cdot\frac{1}{6} + 32\cdot\frac{1}{6} - 64\cdot\frac{1}{6}\\
+&= \frac{1}{6}(2+4+8+16+32-64)\\
+&= -\frac{1}{3}
+\end{align}
+$$
+
+...or you can get **R** to work it out
+
+```{r}
+tibble(spots=1:6) %>%
+  mutate(
+    bucks=2^spots * ifelse(spots==6, -1, 1)
+  ) -> game
+
+mean(game$bucks)
+
+```
+
+## Exercise 02.02: Variance 
+
+One of the ways that gambling (and [gambling companies like Aristocrat](https://www.crikey.com.au/2020/02/21/gamblers-lose-7b-dollars-a-year-on-aristocrats-pokies/)) can suck us in is through variation.
+
+* If I told you I had a game where each time you played, you would give me $\$0.33$ you probably would not want to play
+    * If you _are_ still interested, do please drop me a line at `CAB220.query@qut.edu.au`
+* If on the other hand I told you the outcome of the game was variable and you had five chances to win up to $\$32$ ... well, maybe you are interested
+    * Maybe you walk past my Casino and see a few people looking pretty happy because they are winning
+    * Sounds like fun huh? Just like vaping or picking a great stock to invest in
+* It's the variance that lures us in so the mean can pick our pocket
+    
+Let's calculate the variance of the distribution of outcomes from our game.
+
+Recall that the variance of a random variable $X$ is
+$$\operatorname{Var}(X) = \operatorname{E}\left[(X - \mu)^2 \right]$$
+where $\mu = \operatorname{E}[X]$. (Which we worked out above!)
+
+Also, there is a handy expansion which leads to a formula that just uses $X^2$ and $X$:
+$$
+\begin{align}
+\operatorname{Var}(X) &= \operatorname{E}\left[(X - \operatorname{E}[X])^2\right] \\[4pt]
+&= \operatorname{E}\left[X^2 - 2X\operatorname{E}[X] + \operatorname{E}[X]^2\right] \\[4pt]
+&= \operatorname{E}\left[X^2\right] - 2\operatorname{E}[X]\operatorname{E}[X] + \operatorname{E}[X]^2 \\[4pt]
+&= \operatorname{E}\left[X^2\right] - 2\operatorname{E}[X]^2 + \operatorname{E}[X]^2 \\[4pt]
+&= \operatorname{E}\left[X^2 \right] - \operatorname{E}[X]^2
+\end{align}
+$$
+
+See if you can work out the variance, and then its square root, of the distribution of outcomes from our game.
+
+### Solutions and commentary
+
+Let's work it out using the expression
+$\operatorname{Var}(X) = \operatorname{E}\left[X^2 \right] - \operatorname{E}[X]^2$.
+
+We know $\operatorname{E}[X] = -\frac{1}{3}$ from before. So what is $\operatorname{E}\left[X^2 \right]$?
+
+$$
+\begin{align}
+\operatorname{E}\left[X^2 \right] &= \sum_{i=1}^k x_i^2 p_i \\
+&= \frac{1}{6}(2^2+4^2+8^2+16^2+32^2+64^2)\\
+&= \frac{1}{6}\;5460\\
+&= 910
+\end{align}
+$$
+so
+$$
+\begin{align}
+\operatorname{Var}(X) &= \operatorname{E}\left[X^2 \right] - \operatorname{E}[X]^2\\[4pt]
+&= 910 - \left(\frac{1}{3}\right)^2\\[4pt]
+&= 909 \,\frac{8}{9}
+\end{align}
+$$
+
+...or you can get **R** to work it out
+
+```{r}
+mean.bucks <- mean(game$bucks)
+game %>%
+  mutate(
+    squared.deviation=(bucks-mean.bucks)^2
+  ) -> game
+
+mean(game$squared.deviation)
+```
+
+Hang on though. We used `mean(game$bucks)`... why couldn't we have use `var()` like this:
+```{r}
+var(game$bucks)
+```
+...if you don't know why not, or why
+```{r}
+var(game$bucks) * 5/6
+```
+_is_ the right variance of this distribution, please review our lecture on measures of spread.
+
+
+## Exercise 02.03: Let's go gambling for free!
+
+Thanks to **R** we can enjoy the thrill of uncertainty without paying a cent.
+
+* This exercise is about _simulating_ our gambling game
+    * This is a useful to know because it can help us get a sense of "what random looks like", [something that human beings are not very good at](https://www.wired.com/2012/12/what-does-randomness-look-like/)
+    * [We are prone to finding patterns when they don't exist](https://towardsdatascience.com/your-dataset-is-a-giant-inkblot-test-b9bf4c53eec5). Generating real random numbers can help us get a better impression of what randomness looks like
+    
+We are going to use the `sample()` function to play our dice game for us
+
+First we, define the outcomes from our sample space
+```{r}
+outcomes <- c(2, 4, 8, 16, 32, -64)
+```
+then we play! Let's play 10 games by sampling with replacement. (You will have to change `eval` to `TRUE` or run this chunk manually to get an output)
+```{r eval=FALSE}
+sample(outcomes, size=10, replace=TRUE)
+```
+Cool! But did you win or lose? We have to add up the winnings (or losses) of each game
+
+```{r eval=FALSE}
+sum(sample(outcomes, size=10, replace=TRUE))
+```
+
+Here is some code that scales up this simulation so we can get `n.players` to each play `n.games` 
+
+```{r eval=FALSE}
+n.players <- 10
+n.games   <- 100
+
+# See https://stackoverflow.com/questions/29884432/dplyr-integer-sampling-within-mutate
+tibble(
+  expand.grid(Game=0:n.games, Player=1:n.players)
+  ) %>%
+  mutate(
+    outcome=ifelse(Game==0, 0, sample(outcomes, size=n(), replace=TRUE))
+    ) %>%
+  group_by(Player) %>%
+  mutate(
+    Total=cumsum(outcome)
+  ) -> games
+
+```
+
+Now we can plot the running total of our games:
+
+```{r eval=FALSE}
+ggplot(data=games, aes(x=Game, y=Total)) +
+  geom_line(aes(group=Player), alpha=0.2) +
+  labs(
+    title="Running totals of our dice game",
+    subtitle=sprintf("For %d different players, playing %d consecutive games", n.players, n.games)
+  )
+```
+
+1. Can you work out the mean Total at the end of 100 Games?
+    * What would you expect it to be?
+    * What happens if you have more players?
+
+
+### Solutions and commentary
+
+To find the mean total after 100 games
+
+```{r eval=FALSE}
+games %>%
+  filter(Game==100) %>%
+  group_by(Game) %>%
+  summarise(Mean=mean(Total))
+```
+
+We could also find the means of the Totals all the Players at each Game:
+```{r eval=FALSE}
+games %>%
+  group_by(Game) %>%
+  summarise(Mean=mean(Total)) -> Player.means
+```
+
+and plot that on our
+```{r eval=FALSE}
+ggplot(data=games, aes(x=Game, y=Total)) +
+  geom_line(aes(group=Player), alpha=0.2) +
+  geom_line(data=Player.means, aes(y=Mean), color="red") +
+  geom_hline(yintercept = 0, lty=2) +
+    labs(
+    title="Running totals of our dice game",
+    subtitle=sprintf("For %d different players, playing %d consecutive games", n.players, n.games)
+  )
+```
+
+
+
+
+
+## For further reading
+
+1. Grolemund, G., & Wickham, H. [R for Data Science](https://r4ds.had.co.nz/) 
+1. Wickham, H. [ggplot2: Elegant Graphics for Data Analysis](https://ggplot2-book.org/)

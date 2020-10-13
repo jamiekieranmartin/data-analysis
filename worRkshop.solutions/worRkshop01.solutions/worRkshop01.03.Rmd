@@ -1,0 +1,171 @@
+---
+title: "woRkshop 01 Exercise 03"
+subtitle: "Calculating summary statistics"
+author: "David Lovell"
+date: "24/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls()) # Clear workspace. 
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## About this exercise
+
+**Exercise 03** gives you an opportunity to gain experience in
+
+* Using base `R` functions to subset, summarise and tabulate data
+* Calculating measures of central tendency
+* Figuring things out using `R` help
+
+You will need to have the following packages installed to run this exercise
+```{r libraries, warning=FALSE, message=FALSE}
+library(tidyverse)
+```
+
+### About the data used in this exercise
+
+[Glassdoor is one of the world’s largest job and recruiting sites](https://www.glassdoor.com/about-us/)
+
+* In 2017, Glassdoor's Chief Economist, Dr Andrew Chamberlain, published [How to Analyze Your Gender Pay Gap: An Employer's Guide](https://www.glassdoor.com/research/how-to-analyze-gender-pay-gap-employers-guide/)
+    * I have used the data from that report downloaded as `data.csv`
+
+### Commands you will need to use in this exercise
+
+Use the `Help` function in `RStudio` to understand more about these
+
+* `read_csv()` is the `tidyverse` command to ingest files of comma separated values (`.csv`).
+  * You must specify `file` the path to the file you are reading in
+  * This command improves on `R`'s base command `read.csv()`
+* `str()` compactly displays the structure of an arbitrary R object
+  * This function tells you the structure of what you have read in
+  * By default `R` often uses special methods to print different kinds of objects in useful ways
+  * However, these print methods can mask information about the true natuure of the objects
+* `names()`, `dimnames()`, `nrows()`, `ncols()`
+
+## Exercise 03.01: Using `summary()` and `table()`
+
+Read in Glassdoor's pay data
+```{r read-data.csv}
+pay <- read_csv("./data/data.csv")
+```
+
+1. Use `summary()` to get a quick summary of the `pay` data
+    * If you get stuck use `help("summary")` to figure things out
+2. Use `summary()` to summarise only the numeric variables
+    * i.e., columns 3, 4, 7, 8, 9
+    * i.e., "age", "perfEval", "seniority", "basePay", "bonus"
+    * If you have forgotten how to subset data frames by column or name, there's plenty of help from Dr Google. Personally, I recommend [the wisdom of Hadley Wickham](https://adv-r.hadley.nz/subsetting.html#introduction-3)
+3. Print out the first 10 rows of the character variables
+    * i.e., columns 1, 2, 5, 6
+    * i.e., "jobTitle", "gender", "edu", "dept"
+4. Use `table()` to tabulate each of the `character` variables of the `pay` data in turn
+    * Remember that `my.data$age` is the syntax needed to extract a column of values named `age` from a data frame called `my.data`
+5. Use `table()` to give a breakdown of `jobTitle` by `gender`
+    * Hint: you can use 
+    * `addmargins()` and `proportions()` can be handy too
+
+### Solutions and commentary
+
+The `summary()` function is handy for a quick look 
+```{r summary}
+summary(pay)
+```
+
+If your dataframe has a lot of variables, then you will probably need to subset it. We will see other ways to do this (using `select()` from the `tidyverse` package), but the following approaches are old skool and you should know them
+```{r summary-subset1}
+summary(pay[,c(3, 4, 7, 8, 9)])
+# or
+summary(pay[,c("age", "perfEval", "seniority", "basePay", "bonus")])
+# or
+cols <- c("age", "perfEval", "seniority", "basePay", "bonus")
+summary(pay[cols])
+```
+
+It's important that you understand how to subset rows and columns. Again, there are prettier ways to do this using functions from the `tidyverse` package, but you should be comfortable with these uglier ways too: they are part of `R`'s heritage and they will serve you well for matrices
+
+```{r summary-subset2}
+pay[1:10, c(1, 2, 5, 6)]
+pay[1:10, c("jobTitle", "gender", "edu", "dept")]
+```
+
+`table()` enables us to count up all the instances of specific values in character variables, or factor variables.  
+`with()` is another way to work with (!) data frames that can make for more readable code
+```{r table1}
+table(pay$jobTitle)
+with(pay, table(jobTitle))
+
+# For your interest
+with(pay,
+     {
+       print(table(jobTitle)) # Note that you have to use print()
+       print(table(gender))
+       print(table(edu))
+       table(dept)
+     }
+)
+```
+
+We can get multidimensional tables by specifying multiple variables to tabulate:
+
+```{r table2}
+table(pay$jobTitle, pay$gender)
+with(pay, addmargins(table(jobTitle, gender)))
+with(pay, proportions(table(jobTitle, gender), margin=1)) -> job.gender
+round(job.gender,2)
+```
+
+
+## Exercise 03.02: Using `mean()`, `median()` but where's `mode()`?
+
+1. What's the mean bonus in the `pay` data?
+2. What's the 10% trimmed mean of these bonuses? (i.e., the mean after removing the highest 10% and lowest 10% of values)
+    * Why might you use a trimmed mean?
+3. Find the mean of this new variable `age.with.NA` 
+
+```{r age.with.NA}
+age.with.NA <- c(NA, pay$age)
+```
+
+4. What's the median base pay in the `pay` data?
+5. What's the median `age.with.NA`
+6. What is/are the most common educational levels in the `pay` data?
+    * Remember the discussion of modes in our lecture on Measures of Central Tendency?
+    * No? Maybe [stackoverflow](https://stackoverflow.com/questions/2547402/how-to-find-the-statistical-mode) can help?
+
+`help("mean")` is your friend for first five questions. Also, as you are typing functions in the editor, hitting the `tab` key can help you by autocompleting commands or suggesting various options. (Try typing `pay$` then hitting `tab`.)
+### Solutions and commentary
+
+Remembering all the options for R functions is hard. In these solutions, try typing `mean(pay$bonus,`  then hitting `tab`
+
+```{r means.and.medians}
+mean(pay$bonus)
+mean(pay$bonus, trim=0.1)
+mean(age.with.NA, na.rm = TRUE)
+median(pay$basePay)
+median(age.with.NA, na.rm = TRUE)
+```
+
+From [stackoverflow](https://stackoverflow.com/questions/2547402/how-to-find-the-statistical-mode) we have a simple (but perhaps not very robust) function to find modes in discrete data
+```{r function-Modes}
+Modes <- function(x) {
+  ux <- unique(x)
+  tab <- tabulate(match(x, ux))
+  ux[tab == max(tab)]
+}
+```
+
+Now we can find the mode... or modes of `pay$edu`?
+```{r}
+Modes(pay$edu)
+```
+Cool! Let's put on a musical!
+
+
+
+## For further reading
+
+1. Grolemund, G., & Wickham, H. (2017). [R for Data Science](https://r4ds.had.co.nz/).
+2. Spector, P. (2008). [Data Manipulation with R](https://qut.primo.exlibrisgroup.com/permalink/61QUT_INST/1g7tbfa/alma991009334908704001). Springer New York.
+

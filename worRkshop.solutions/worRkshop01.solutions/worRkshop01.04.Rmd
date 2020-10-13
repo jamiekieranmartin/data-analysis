@@ -1,0 +1,287 @@
+---
+title: "woRkshop 01 Exercise 04"
+subtitle: "Organising and subsetting your data for analysis and visualisation"
+author: "David Lovell"
+date: "24/08/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls()) # Clear workspace. 
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## About this exercise
+
+**Exercise 04** gives you an opportunity to gain experience in
+
+* Using the principles of "tidy data" to organise data for analysis
+* Using the pipe operator `%>%` to incrementally create readable data transformations
+* Using `filter()`, `select()`, `mutate()`, `group_by()` and `summarise()`
+* Pivoting data from wide to long form using `pivot_longer()`
+
+
+You will need to have the following packages installed to run this exercise
+```{r libraries, warning=FALSE, message=FALSE}
+library(tidyverse)
+```
+
+### About the data used in this exercise
+
+[Glassdoor is one of the world’s largest job and recruiting sites](https://www.glassdoor.com/about-us/)
+
+* In 2017, Glassdoor's Chief Economist, Dr Andrew Chamberlain, published [How to Analyze Your Gender Pay Gap: An Employer's Guide](https://www.glassdoor.com/research/how-to-analyze-gender-pay-gap-employers-guide/)
+    * I have used the data from that report downloaded as `data.csv`
+
+### Commands you will need to use in this exercise
+
+The commands you will need to in this exercise come from the [`tidyverse`](https://www.tidyverse.org/) "an opinionated collection of R packages designed for data science. All packages share an underlying design philosophy, grammar, and data structures".
+
+Opinionated as the `tidyverse` may be, it is nevertheless extremely powerful in its functionality and (if written well) easier to read than the equivalent processing steps in base `R`.
+
+It is also beautifully described by Garrett Grolemund and Hadley Wickham in [R for Data Science](https://r4ds.had.co.nz/): an essential reference for data scientists who use `R`.
+
+
+
+## Exercise 04.01: Using `filter()`, `select()` and `%>%` to subset data
+
+Read in Glassdoor's pay data
+```{r read-data.csv}
+pay <- read_csv("./data/data.csv")
+```
+
+1. Display the first 10 rows and 9 columns of `pay`
+    * Hint: the output of `read_csv()` is a `tibble`: "Tibbles are data frames, but they tweak some older behaviours to make life a little easier. R is an old language, and some things that were useful 10 or 20 years ago now get in your way". Take a look at [tibbles in R for Data Science](https://r4ds.had.co.nz/tibbles.html)
+2. Use the pipe (`%>`) operator to pipe the `pay` dataset into the `select()` function and select the variables `jobTitle` and `basePay`
+    * Hint: Take a look at [Select columns with `select()`](https://r4ds.had.co.nz/transform.html#select)
+3. Use the pipe (`%>`) operator to pipe the `jobTitle` and `basePay` variables of `pay` through `filter()` to produce a dataset that contains only Graphic Designers
+    * Hint: Take a look at [Filter rows with `filter()`](https://r4ds.had.co.nz/transform.html#filter-rows-with-filter)
+4. Now produce a dataset of  `jobTitle` and `basePay` only for Graphic Designers and Software Engineers
+    * Hint: Take a look at "Logical operators" section of [Filter rows with `filter()`](https://r4ds.had.co.nz/transform.html#filter-rows-with-filter)
+    * Remember `R`s Boolean operators yourself: & is “and”, | is “or”, and ! is “not”
+5. Create a table that breaks down the number of Graphic Designers and Software Engineers by gender
+    * Hint: filter out the rows of interest first, then select the variables of interest and pipe that through `table()`
+
+### Solutions and commentary
+
+[tibbles in R for Data Science](https://r4ds.had.co.nz/tibbles.html):
+
+> Tibbles have a refined print method that shows only the first 10 rows, and all the columns that fit on screen
+
+```{r}
+pay
+```
+
+In addition to piping data through `select()` like this...
+```{r}
+pay %>% select(jobTitle, basePay)
+```
+...we can invoke `select()` with the dataset at its first argument:
+```{r}
+select(pay, jobTitle, basePay)
+```
+
+After selecting the columns of interest, we can select the rows of interest like this
+```{r}
+pay %>%
+  select(jobTitle, basePay) %>%
+  filter(jobTitle=="Graphic Designer")
+```
+
+We could also filter the rows first, _then_ select the columns of interest. This is useful if you need to filter out a subset of observations based on different criteria, then focus your attention of specific variables of that subset:
+```{r}
+pay %>%
+  filter(jobTitle=="Graphic Designer") %>%
+  select(jobTitle, basePay)
+```
+
+The English language has a funny relationship to logical calculus. If we want to a subset that contains "Graphic Designer" _and_ "Software Engineer" values of the `jobTitle` variable, we have to create a filter that lets "Graphic Designer" _or_ "Software Engineer" values through:
+
+```{r}
+pay %>%
+  filter(jobTitle=="Graphic Designer" | jobTitle=="Software Engineer") %>%
+  select(jobTitle, basePay)
+```
+
+This subset of data can now be easily tabulated:
+```{r}
+pay %>%
+  filter(jobTitle=="Graphic Designer" | jobTitle=="Software Engineer") %>%
+  select(jobTitle, gender) %>%
+  table()
+```
+
+
+
+
+## Exercise 04.02: Using `mutate()`, `group_by()` and `summarise()` to get useful summary statistics
+
+1. Create a dataset called `pay.GDSE` that focuses on the gender, base pay and bonuses of graphic designers and software engineers
+2. Use `mutate()` to create a new variable called `totalPay` which is equal to `basePay + bonus` in the  `pay.GDSE` dataset
+    * Hint: Take a look at [Add new variables with `mutate()`](https://r4ds.had.co.nz/transform.html#add-new-variables-with-mutate)
+3. Use `group_by()` to group the result of the previous step by job and gender. What's different about the output of your pipeline now?
+    * Hint: Take a look at [Grouped summaries with `summarise()` ](https://r4ds.had.co.nz/transform.html#grouped-summaries-with-summarise) to see how to invoke `group_by()`
+4. Use `summary()` to count the number of observations in each of the job and gender groups
+    * Hint: Take a look at [Counts](https://r4ds.had.co.nz/transform.html#counts) to understand how to check that you’re not drawing conclusions based on very small amounts of data
+5. Now calculate the median and interquartile range of the total pay recieved by each person in these job and gender groups
+    * Hint: Take a look at [Counts](https://r4ds.had.co.nz/transform.html#counts) to understand how to check that you’re not drawing conclusions based on very small amounts of data
+6. Now apply your analysis pipeline to the entire `pay` dataset and use `arrange()` to put the results in ascending order of median total pay. Discuss your findings.
+    * Hint: Take a look at [Arrange rows with `arrange()`](https://r4ds.had.co.nz/transform.html#arrange-rows-with-arrange)
+
+
+### Solutions and commentary
+
+It can simplify (and speed up) analyses to save a subset of the observations and variables of interest:
+```{r}
+pay %>%
+  filter(jobTitle=="Graphic Designer" | jobTitle=="Software Engineer") %>%
+  select(jobTitle, gender, basePay, bonus) -> pay.GDSE
+
+```
+
+Now we can create a new variable from existing ones...
+```{r}
+pay.GDSE %>%
+  mutate(totalPay = basePay + bonus)
+```
+
+...and group the dataset in terms of the different combinations of values that `jobTitle` and `gender` take
+```{r}
+pay.GDSE %>%
+mutate(totalPay = basePay + bonus) %>%
+  group_by(jobTitle, gender)
+```
+The difference between the results of the ungrouped and grouped datasets is in
+```
+# Groups:   jobTitle, gender [4]
+```
+which tells us that there are 4 different combinations of values that `jobTitle` and `gender`.
+
+Now we can calculate summary statistics, starting first with a count of the number of observations we will be summarising. _It is critical to check that you’re not drawing conclusions based on very small amounts of data._
+
+
+```{r}
+pay.GDSE %>%
+mutate(totalPay = basePay + bonus) %>%
+  group_by(jobTitle, gender) %>%
+  summarise(count=n())
+```
+
+Now we can apply additional summary statistics:
+
+```{r}
+pay.GDSE %>%
+mutate(totalPay = basePay + bonus) %>%
+  group_by(jobTitle, gender) %>%
+  summarise(
+    count=n(),
+    median.totalPay=median(totalPay),
+    IQR.totalPay=IQR(totalPay)
+    )
+```
+
+One of the strengths of the `tidyverse` philosophy is that it helps us write code that can be readily applied to different subsets of data. In this step, we look at what we can see from the entire dataset and arrange the results to facilitate meaningful comparison:
+```{r}
+pay %>%
+mutate(totalPay = basePay + bonus) %>%
+  group_by(jobTitle, gender) %>%
+  summarise(
+    count=n(),
+    median.totalPay=median(totalPay),
+    IQR.totalPay=IQR(totalPay)
+    ) %>%
+  arrange(median.totalPay)
+```
+
+In considering findings, it's important to note from [How to Analyze Your Gender Pay Gap: An Employer's Guide](https://www.glassdoor.com/research/how-to-analyze-gender-pay-gap-employers-guide/) that
+
+> ...we’ve provided R code and a sample data file for a hypothetical employer with 1,000 employees,
+spread across 10 job roles and 5 company departments
+
+In other words, **this is made up data**, so don't seek to use your findings to draw conclusions about the real world.
+
+* Also, appreciate that this data set is "cleaner" than almost any that you would encounter in the wild
+    * There are no missing or unexpected values in what we've looked at so far
+    * This makes the `pay` data an outlier in terms of real-world datasets
+    * However, the idea in presenting this example is to focus your attention on learning about `R` rather than data cleaning
+
+Things I notice from this made up data include
+
+* The most and least common roles and their position on the salary spectrum
+* The different ranks of median salaries for Males and Females doing the same jobs
+
+I also notice that it is hard to interpret lots of numbers. I'd like to see these data visualised... but before we can go there, we need to understand how to convert data from wide to long format.
+
+## Using `pivot_longer()` to convert wide data to a longer format
+
+> “Tidy datasets are all alike, but every messy dataset is messy in its own way.” –– Hadley Wickham
+
+We can represent the same data in underlying ways, but following the three rules of tidy data make it easier for us to work with data using `tidyverse` methods. As Hadley Wickham explains in [R for Data Science](https://r4ds.had.co.nz/tidy-data.html), the three rules are
+
+![](https://d33wubrfki0l68.cloudfront.net/6f1ddb544fc5c69a2478e444ab8112fb0eea23f8/91adc/images/tidy-1.png)
+
+1. Each variable must have its own column.
+2. Each observation must have its own row.
+3. Each value must have its own cell.
+
+Fortunately, the `pay` data is already in a tidy format. This exercise is to give you practice of a common kind of rearrangement of this data, _pivoting_ columns into variables. This is often used in preparing data for visualisation using `ggplot` because it allows us to group different values together according to some label before plotting them on the same axes.
+
+To demonstrate, consider the variables `basePay` and `bonus` in the `pay` data.
+    * Both variables are different kinds of dollar amounts, so we might want to plot them together.
+    * I'm going to use a subset of the `pay` data to demonstrate this
+    
+```{r}
+pay %>%
+  filter(jobTitle=="Software Engineer", gender=="Female") %>%
+  mutate(ID=row_number()) %>% 
+  select(ID, edu, basePay, bonus) -> pay.FSE
+pay.FSE
+```
+
+Note that I've used `row_number()` to add  an extra variable called `ID` to identify each individual observation.
+
+Now, we pivot the two columns whose _names_ are going to become _values_ (`basePay` and `bonus`)
+    * into one variable that holds their names (called `Component`, short for "Salary Component")
+    * and one varialbe that holds their values (called `Amount` short for "Dollar Amount")
+
+```{r}
+pay.FSE %>%
+  pivot_longer(
+    c(basePay, bonus),
+    names_to='Component',
+    values_to="Amount"
+    )
+```
+See how data from the same individual observation (`ID`) is now spread over multiple rows?
+
+Your turn!
+
+1. Add an `ID` variable to `pay` to uniquely identify each row
+2. Select the `ID`, `edu`, `basePay`, `bonus` variables from `pay`
+3. Use `mutate()` to create a new variable called `totalPay` which is equal to `basePay + bonus`
+4. Pivot the data so that the column names `basePay`, `bonus` and `totalPay` form a variable named `Component` and their values form a variable called `Amount`
+
+
+### Solutions and commentary
+
+This requires two main modification from the demonstration:
+
+```{r}
+pay %>%
+  mutate(ID=row_number()) %>% 
+  select(ID, edu, basePay, bonus) %>%
+  mutate(totalPay = basePay + bonus) %>%  # Modified from demonstration
+  pivot_longer(
+    c(basePay, bonus, totalPay),          # Modified from demonstration
+    names_to='Component',
+    values_to="Amount"
+    )
+```
+
+See how data from the same individual observation (`ID`) is now spread over three rows, one for each kind of `Component`?
+
+
+## For further reading
+
+1. Grolemund, G., & Wickham, H. (2017). [R for Data Science](https://r4ds.had.co.nz/).
+
